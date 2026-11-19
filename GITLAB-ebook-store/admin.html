@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#08111f" />
+  <title>Admin — GITTS</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .dash-wrap{max-width:1180px;margin:auto;padding:40px 25px 80px}
+    .dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin:22px 0}
+    .dash-card{background:white;border:1px solid #e8ebf0;border-radius:12px;padding:22px;box-shadow:0 8px 25px #17263a08}
+    .dash-card small{font-size:10px;letter-spacing:1.5px;color:#788394;font-weight:700}
+    .dash-card h3{font:800 28px Manrope;margin:10px 0 4px}
+    .dash-card p{font-size:11px;color:#818b99;margin:0;line-height:1.6}
+    .dash-card.green{background:#08111f;color:white;border-color:#08111f}
+    .dash-card.green p{color:#aeb8c8}.dash-card.green h3{color:#b5f36b}
+    .table-card{background:white;border:1px solid #e8ebf0;border-radius:12px;overflow:hidden;margin-top:18px}
+    .table-card h4{margin:0;padding:18px 20px;font:800 15px Manrope;border-bottom:1px solid #edf0f3;display:flex;justify-content:space-between;align-items:center}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{text-align:left;padding:12px 20px;color:#788394;font-size:10px;letter-spacing:1px;background:#f7f8fb}
+    td{padding:13px 20px;border-top:1px solid #edf0f3;vertical-align:top}
+    .pill2{font-size:9px;font-weight:700;padding:5px 8px;border-radius:20px;background:#eff8e6;color:#4e7930}
+    .pill2.pending{background:#fff4e5;color:#9a6a00}.pill2.red{background:#fdecec;color:#bd3939}
+    .btn{border:0;border-radius:7px;padding:9px 12px;font-weight:700;font-size:11px;cursor:pointer}
+    .btn-approve{background:#b5f36b;color:#08111f}.btn-reject{background:#fdecec;color:#bd3939}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:20px}
+    .form-grid input,.form-grid select{width:100%;padding:12px;border:1px solid #dce2e9;border-radius:7px;font:14px "DM Sans"}
+    .form-grid label{font-size:11px;font-weight:700;display:block;margin-bottom:6px}
+    @media(max-width:800px){.dash-grid{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark">G</span><span>GITTS<span class="brand-dot">.</span></span></a>
+    <nav><a href="/">Home</a><a href="/dashboard.html">My Panel</a><a href="#" id="logoutBtn">Logout</a></nav>
+    <a class="top-cta" href="/#books">View Site <span>↗</span></a>
+  </header>
+
+  <main class="dash-wrap">
+    <div class="eyebrow" style="color:#77934e">ADMIN DASHBOARD</div>
+    <h2 style="font:800 32px Manrope;margin:10px 0 4px">Hello, Admin<span style="color:#7eae43">.</span></h2>
+    <p style="color:#788394;font-size:13px;margin:0">All members, books and withdrawals in one place.</p>
+
+    <div class="dash-grid">
+      <div class="dash-card green"><small>TOTAL MEMBERS</small><h3 id="totalMembers">0</h3><p>All registered accounts</p></div>
+      <div class="dash-card"><small>PAID MEMBERS</small><h3 id="paidMembers">0</h3><p>Paid KSh 300 registration</p></div>
+      <div class="dash-card"><small>REGISTRATION MONEY</small><h3 id="regMoney">KSh 0</h3><p>Paid members x 300</p></div>
+      <div class="dash-card"><small>PENDING WITHDRAWALS</small><h3 id="pendingWd">0</h3><p>Waiting for your approval</p></div>
+    </div>
+
+    <!-- ADD BOOK -->
+    <div class="table-card">
+      <h4>Add New Book <span style="font-size:11px;color:#9aa3af;font-weight:400">Appears on homepage instantly</span></h4>
+      <div class="form-grid">
+        <div><label>Book Title</label><input id="bookTitle" placeholder="e.g. Forex Psychology Guide"></div>
+        <div><label>Price (KSh)</label><input id="bookPrice" type="number" placeholder="e.g. 250"></div>
+        <div><label>Category</label><select id="bookCat"><option>TRADING JOURNAL</option><option>TRADING WORKBOOK</option><option>E-BOOK</option><option>JOURNAL</option></select></div>
+        <div><label>Cover Style</label><select id="bookCover"><option value="cover-one">Teal - 01</option><option value="cover-two">Purple - 02</option></select></div>
+        <div style="grid-column:span 2"><label>Description</label><input id="bookDesc" placeholder="One line description"></div>
+        <div style="grid-column:span 2"><label>PDF Download Link (Google Drive / upload link)</label><input id="bookLink" placeholder="https://drive.google.com/..."></div>
+      </div>
+      <div style="padding:0 20px 20px"><button class="primary-btn" id="addBookBtn">Add Book →</button><p class="checkout-status" id="bookStatus"></p></div>
+    </div>
+
+    <!-- WITHDRAWALS -->
+    <div class="table-card">
+      <h4>Withdrawal Requests</h4>
+      <table><thead><tr><th>MEMBER</th><th>AMOUNT</th><th>PHONE</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody id="wdTable"><tr><td colspan="5" style="text-align:center;color:#9aa3af">Loading...</td></tr></tbody></table>
+    </div>
+
+    <!-- MEMBERS -->
+    <div class="table-card">
+      <h4>All Members <input id="searchMember" placeholder="Search name / email..." style="padding:8px 10px;border:1px solid #dce2e9;border-radius:6px;font-size:12px;width:200px"></h4>
+      <table><thead><tr><th>NAME</th><th>PHONE</th><th>REFERRED BY</th><th>STATUS</th><th>BALANCE</th><th>JOINED</th></tr></thead><tbody id="memberTable"><tr><td colspan="6" style="text-align:center;color:#9aa3af">Loading...</td></tr></tbody></table>
+    </div>
+  </main>
+
+  <footer><a class="brand" href="/"><span class="brand-mark">G</span><span>GITTS<span class="brand-dot">.</span></span></a><span>© GITTS Admin</span><span>Knowledge, made accessible.</span></footer>
+
+<script>
+const token = localStorage.getItem("gitts_token");
+if (!token) window.location.href = "/";
+let allMembers = [];
+
+async function loadAdmin() {
+  try {
+    const res = await fetch("/api/admin/overview", { headers: { "Authorization": "Bearer " + token } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Not admin");
+    document.getElementById("totalMembers").textContent = data.totalMembers || 0;
+    document.getElementById("paidMembers").textContent = data.paidMembers || 0;
+    document.getElementById("regMoney").textContent = "KSh " + ((data.paidMembers || 0) * 300);
+    document.getElementById("pendingWd").textContent = (data.withdrawals || []).filter(w => w.status === "PENDING").length;
+
+    // Withdrawals
+    document.getElementById("wdTable").innerHTML = (data.withdrawals || []).length ? data.withdrawals.map(w => `<tr><td><b>${w.userName}</b><br><span style="color:#9aa3af">${w.userEmail}</span></td><td>KSh ${w.amount}</td><td>${w.phone}</td><td><span class="pill2 ${w.status === "PAID" ? "" : "pending"}">${w.status}</span></td><td>${w.status === "PENDING" ? `<button class="btn btn-approve" onclick="approveWd('${w._id}')">Approve & Paid →</button> <button class="btn btn-reject" onclick="rejectWd('${w._id}')">Reject</button>` : "-"}</td></tr>`).join("") : `<tr><td colspan="5" style="text-align:center">No withdrawals yet.</td></tr>`;
+
+    // Members
+    allMembers = data.members || [];
+    renderMembers(allMembers);
+  } catch (e) {
+    alert(e.message); window.location.href = "/";
+  }
+}
+function renderMembers(list) {
+  document.getElementById("memberTable").innerHTML = list.length ? list.map(m => `<tr><td><b>${m.name}</b><br><span style="color:#9aa3af">${m.email}</span></td><td>${m.phone}</td><td>${m.referredBy || "-"}</td><td><span class="pill2 ${m.registrationPaid ? "" : "pending"}">${m.registrationPaid ? "PAID" : "PENDING"}</span></td><td>KSh ${m.balance || 0}</td><td>${new Date(m.createdAt).toLocaleDateString()}</td></tr>`).join("") : `<tr><td colspan="6" style="text-align:center">No members yet.</td></tr>`;
+}
+document.getElementById("searchMember").addEventListener("input", e => {
+  const q = e.target.value.toLowerCase();
+  renderMembers(allMembers.filter(m => (m.name + m.email).toLowerCase().includes(q)));
+});
+
+async function approveWd(id) {
+  if (!confirm("Have you sent the money via M-Pesa to this member? Click OK to mark as PAID.")) return;
+  const res = await fetch("/api/admin/withdraw/" + id + "/approve", { method: "POST", headers: { "Authorization": "Bearer " + token } });
+  const data = await res.json();
+  if (!res.ok) return alert(data.error || "Failed");
+  alert("Marked as PAID!"); loadAdmin();
+}
+async function rejectWd(id) {
+  if (!confirm("Reject this withdrawal? Money goes back to their balance.")) return;
+  const res = await fetch("/api/admin/withdraw/" + id + "/reject", { method: "POST", headers: { "Authorization": "Bearer " + token } });
+  const data = await res.json();
+  if (!res.ok) return alert(data.error || "Failed");
+  alert("Rejected."); loadAdmin();
+}
+
+document.getElementById("addBookBtn").addEventListener("click", async () => {
+  const title = document.getElementById("bookTitle").value.trim();
+  const price = Number(document.getElementById("bookPrice").value);
+  const category = document.getElementById("bookCat").value;
+  const cover = document.getElementById("bookCover").value;
+  const desc = document.getElementById("bookDesc").value.trim();
+  const link = document.getElementById("bookLink").value.trim();
+  const status = document.getElementById("bookStatus");
+  if (!title || !price) { status.textContent = "Enter title and price."; status.className = "checkout-status error"; return; }
+  const res = await fetch("/api/admin/books", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token }, body: JSON.stringify({ title, price, category, cover, description: desc, downloadUrl: link }) });
+  const data = await res.json();
+  if (!res.ok) { status.textContent = data.error || "Failed"; status.className = "checkout-status error"; return; }
+  status.textContent = "Book added! It will show on homepage."; status.className = "checkout-status success";
+  document.getElementById("bookTitle").value = ""; document.getElementById("bookPrice").value = "";
+});
+
+document.getElementById("logoutBtn").addEventListener("click", e => { e.preventDefault(); localStorage.removeItem("gitts_token"); window.location.href = "/"; });
+loadAdmin();
+</script>
+</body>
+</html>
