@@ -3,8 +3,7 @@ const PRODUCTS = {
   "forex-discipline": { name: "Forex Discipline Journal", amount: 200 }
 };
 
-// Daraja expects EAT (UTC+3), Vercel servers run on UTC
-// Without this, your password is 3 hours wrong
+// Daraja wants EAT (UTC+3), Vercel runs on UTC
 function getTimestamp() {
   const eat = new Date(Date.now() + 3 * 60 * 60 * 1000);
   const Y = eat.getUTCFullYear();
@@ -20,11 +19,11 @@ function base64(value) {
   return Buffer.from(value).toString("base64");
 }
 
-// Always convert 0704577216, +254704577216, 254704577216 -> 254704577216
+// 0704577216, +254704577216, 254704577216 -> 254704577216
 function normalizePhone(phone) {
   let p = String(phone || "").replace(/\s+/g, "").replace(/^\+/, "");
   if (p.startsWith("0")) p = "254" + p.slice(1);
-  if (p.startsWith("2540")) p = "254" + p.slice(4); // fix 2540704... bug
+  if (p.startsWith("2540")) p = "254" + p.slice(4);
   return p;
 }
 
@@ -44,29 +43,20 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "Enter a valid Kenyan mobile number. Example: 0704577216" });
   }
 
-  const {
-    MPESA_CONSUMER_KEY,
-    MPESA_CONSUMER_SECRET,
-    MPESA_SHORTCODE,
-    MPESA_PASSKEY,
-    MPESA_CALLBACK_URL,
-    MPESA_TRANSACTION_TYPE // optional: set in Vercel if you ever switch to Paybill
-  } = process.env;
+  // YOUR NUMBERS - Store 1275105, Till 1745713
+  // You can still override via Vercel Env Vars if you want
+  const storeNumber = String(process.env.MPESA_SHORTCODE || "1275105").trim();
+  const tillNumber = String(process.env.MPESA_TILL_NUMBER || "1745713").trim();
+  const { MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_PASSKEY, MPESA_CALLBACK_URL } = process.env;
 
-  const missing = [
-    "MPESA_CONSUMER_KEY",
-    "MPESA_CONSUMER_SECRET",
-    "MPESA_SHORTCODE",
-    "MPESA_PASSKEY",
-    "MPESA_CALLBACK_URL",
-  ].filter((key) => !process.env[key]);
-
+  const missing = ["MPESA_CONSUMER_KEY", "MPESA_CONSUMER_SECRET", "MPESA_PASSKEY", "MPESA_CALLBACK_URL"]
+    .filter((key) => !process.env[key]);
   if (missing.length) {
-    return res.status(500).json({ error: `M-Pesa configuration is incomplete. Missing: ${missing.join(", ")}` });
+    return res.status(500).json({ error: `Missing: ${missing.join(", ")}` });
   }
 
   try {
-    // 1. Get Token - PRODUCTION URL
+    // 1. Token - PRODUCTION
     const auth = Buffer.from(`${MPESA_CONSUMER_KEY}:${MPESA_CONSUMER_SECRET}`).toString("base64");
     const tokenResponse = await fetch(
       "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
@@ -75,27 +65,21 @@ module.exports = async (req, res) => {
     const tokenData = await tokenResponse.json();
     if (!tokenResponse.ok || !tokenData.access_token) {
       console.error("Daraja token error", tokenData);
-      return res.status(502).json({ error: "M-Pesa authentication failed. Check your production API credentials." });
+      return res.status(502).json({ error: "M-Pesa authentication failed. Check production keys." });
     }
 
-    // 2. Build STK Payload
+    // 2. STK Payload - Store in BusinessShortCode, Till in PartyB
     const timestamp = getTimestamp();
-    const shortcode = String(MPESA_SHORTCODE).trim();
-    const password = base64(`${shortcode}${MPESA_PASSKEY}${timestamp}`);
-
-    // For Till 1275105 = CustomerBuyGoodsOnline
-    // For Paybill = CustomerPayBillOnline
-    // Set MPESA_TRANSACTION_TYPE in Vercel if you want to override
-    const transactionType = MPESA_TRANSACTION_TYPE || "CustomerBuyGoodsOnline";
+    const password = base64(`${storeNumber}${MPESA_PASSKEY}${timestamp}`);
 
     const payload = {
-      BusinessShortCode: shortcode,
+      BusinessShortCode: storeNumber, // 1275105 - STORE
       Password: password,
       Timestamp: timestamp,
-      TransactionType: transactionType,
+      TransactionType: "CustomerBuyGoodsOnline", // Till
       Amount: product.amount,
-      PartyA: phone,
-      PartyB: shortcode,
+      PartyA: phone, // 254704577216 - Customer
+      PartyB: tillNumber, // 1745713 - TILL
       PhoneNumber: phone,
       CallBackURL: MPESA_CALLBACK_URL,
       AccountReference: "GITLAB",
@@ -103,16 +87,14 @@ module.exports = async (req, res) => {
     };
 
     console.log("STK Request:", {
-      BusinessShortCode: shortcode,
-      TransactionType: transactionType,
-      Amount: product.amount,
+      BusinessShortCode: storeNumber,
+      PartyB: tillNumber,
       PartyA: phone,
-      PartyB: shortcode,
-      PhoneNumber: phone,
+      Amount: product.amount,
       Timestamp: timestamp,
     });
 
-    // 3. Send STK Push - PRODUCTION URL
+    // 3. Send STK - PRODUCTION
     const stkResponse = await fetch(
       "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
       {
@@ -129,17 +111,16 @@ module.exports = async (req, res) => {
     console.log("Daraja STK Response:", stkData);
 
     if (!stkResponse.ok || stkData.ResponseCode !== "0") {
-      console.error("Daraja STK error", stkData);
       return res.status(502).json({
         error: stkData.errorMessage || stkData.ResponseDescription || "Safaricom rejected the STK request.",
-        daraja: stkData, // now frontend can see real reason
+        daraja: stkData,
       });
     }
 
     return res.status(200).json({
       success: true,
       checkoutRequestID: stkData.CheckoutRequestID,
-      message: `STK Push sent for KSh ${product.amount}. Check ${phone} and enter your M-Pesa PIN to complete payment.`,
+      message: `STK Push sent for KSh ${product.amount}. Check ${phone} and enter your M-Pesa PIN.`,
     });
   } catch (error) {
     console.error("STK initiation error", error);
