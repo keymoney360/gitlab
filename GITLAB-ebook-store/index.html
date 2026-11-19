@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#08111f" />
+  <title>GITLAB — Digital Library</title>
+  <meta name="description" content="Practical digital books and forex journals. Buy securely with M-Pesa." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#"><span class="brand-mark">G</span><span>GITLAB<span class="brand-dot">.</span></span></a>
+    <nav><a href="#books">Explore books</a><a href="#how">How it works</a></nav>
+    <a class="top-cta" href="#books">Browse library <span>↗</span></a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="live-dot"></span> YOUR NEXT READ STARTS HERE</div>
+        <h1>Knowledge that<br><em>moves you forward.</em></h1>
+        <p class="hero-text">Discover practical digital books, trading journals and resources. Choose what you need and pay securely with M-Pesa.</p>
+        <div class="hero-actions"><a class="primary-btn" href="#books">Explore the library <span>→</span></a><span class="secure-note">⌁ Secure M-Pesa checkout</span></div>
+        <div class="hero-stats"><div><strong>Instant</strong><small>Digital checkout</small></div><div><strong>Simple</strong><small>No account needed</small></div><div><strong>M-Pesa</strong><small>STK Push payment</small></div></div>
+      </div>
+      <div class="hero-art" aria-label="Decorative book illustration">
+        <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+        <div class="book book-back"><div class="book-lines"></div></div>
+        <div class="book book-front"><div class="book-tag">GITLAB<br>READING SERIES</div><div class="book-title">LEARN.<br>BUILD.<br><span>GROW.</span></div><div class="book-bottom">DIGITAL KNOWLEDGE / 001</div></div>
+        <div class="floating-chip chip-top">✦ Curated resources</div><div class="floating-chip chip-bottom">↗ Learn at your pace</div>
+      </div>
+    </section>
+
+    <section class="trust-strip"><span>BUILT FOR CURIOUS MINDS</span><i></i><span>PAY WITH M-PESA</span><i></i><span>NO REGISTRATION REQUIRED</span></section>
+
+    <section class="catalog section" id="books">
+      <div class="section-heading"><div><div class="eyebrow">THE DIGITAL SHELF</div><h2>Explore the library<span>.</span></h2><p>Start with our forex journal collection, then check back for more titles.</p></div><div class="catalog-count"><b>02</b><span>FEATURED TITLES</span></div></div>
+      <div class="product-grid">
+        <article class="product-card">
+          <div class="cover cover-one"><div class="cover-top">GITLAB JOURNALS <span>01 / FX</span></div><div class="cover-symbol">↗</div><div class="cover-title">THE FOREX<br><b>TRADING</b><br>JOURNAL</div><div class="cover-bottom">PLAN · EXECUTE · REVIEW</div></div>
+          <div class="product-info"><div class="product-meta"><span class="pill">TRADING JOURNAL</span><span class="pages">PDF · DIGITAL</span></div><h3>Forex Trading Journal</h3><p>Track entries, exits, risk, emotions and lessons from every trade.</p><div class="product-buy"><strong>KSh 150</strong><button class="buy-btn" data-product="forex-journal">Buy now <span>→</span></button></div></div>
+        </article>
+        <article class="product-card">
+          <div class="cover cover-two"><div class="cover-top">GITLAB JOURNALS <span>02 / FX</span></div><div class="cover-symbol">◒</div><div class="cover-title">THE TRADER'S<br><b>DISCIPLINE</b><br>WORKBOOK</div><div class="cover-bottom">FOCUS · CONSISTENCY · GROWTH</div></div>
+          <div class="product-info"><div class="product-meta"><span class="pill purple">TRADING WORKBOOK</span><span class="pages">PDF · DIGITAL</span></div><h3>Forex Discipline Journal</h3><p>Build a repeatable routine with a weekly review and trading checklist.</p><div class="product-buy"><strong>KSh 200</strong><button class="buy-btn" data-product="forex-discipline">Buy now <span>→</span></button></div></div>
+        </article>
+      </div>
+      <div class="coming-soon"><span class="spark">✳</span><div><b>More knowledge is on the way.</b><p>New e-books and practical resources will be added to the shelf.</p></div></div>
+    </section>
+
+    <section class="how section" id="how"><div class="eyebrow">A FEW SIMPLE STEPS</div><h2>Read more. Stress less<span>.</span></h2><div class="steps"><div class="step"><span>01</span><h3>Choose a book</h3><p>Browse the digital shelf and select the resource you want.</p></div><div class="step"><span>02</span><h3>Pay with M-Pesa</h3><p>Enter your Safaricom number and approve the STK prompt on your phone.</p></div><div class="step"><span>03</span><h3>Get your copy</h3><p>Once payment is confirmed, your digital download can be delivered.</p></div></div></section>
+  </main>
+
+  <footer><a class="brand" href="#"><span class="brand-mark">G</span><span>GITLAB<span class="brand-dot">.</span></span></a><span>© <span id="year"></span> GITLAB Digital Library</span><span>Knowledge, made accessible.</span></footer>
+
+  <div class="modal-backdrop" id="checkoutModal" aria-hidden="true">
+    <section class="checkout-modal" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle">
+      <button class="close-modal" id="closeModal" aria-label="Close">×</button>
+      <div class="modal-icon">↗</div><div class="eyebrow">SECURE CHECKOUT</div><h2 id="checkoutTitle">Complete your purchase</h2>
+      <p class="modal-product" id="modalProduct"></p>
+      <label for="phone">M-Pesa phone number</label>
+      <div class="phone-input"><span>🇰🇪 +254</span><input id="phone" type="tel" inputmode="numeric" placeholder="7XXXXXXXX" maxlength="9" autocomplete="tel-national"></div>
+      <small class="input-help">Enter the 9 digits after 0, for example 712345678.</small>
+      <button class="pay-btn" id="payButton">Send M-Pesa prompt <span>→</span></button>
+      <p class="checkout-status" id="checkoutStatus" role="status"></p>
+      <div class="modal-foot">🔒 Your payment is processed securely through Safaricom Daraja.</div>
+    </section>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
