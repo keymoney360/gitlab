@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#08111f" />
+  <title>My Panel — GITTS</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .dash-wrap{max-width:1180px;margin:auto;padding:40px 25px 80px}
+    .dash-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin:22px 0}
+    .dash-card{background:white;border:1px solid #e8ebf0;border-radius:12px;padding:22px;box-shadow:0 8px 25px #17263a08}
+    .dash-card small{font-size:10px;letter-spacing:1.5px;color:#788394;font-weight:700}
+    .dash-card h3{font:800 28px Manrope;margin:10px 0 4px}
+    .dash-card p{font-size:11px;color:#818b99;margin:0;line-height:1.6}
+    .dash-card.green{background:#08111f;color:white;border-color:#08111f}
+    .dash-card.green p{color:#aeb8c8}
+    .dash-card.green h3{color:#b5f36b}
+    .ref-box{background:#edf2e7;border-radius:9px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0}
+    .ref-box b{font:700 13px Manrope}
+    .ref-box code{background:white;padding:8px 10px;border-radius:6px;font-size:11px;word-break:break-all}
+    .table-card{background:white;border:1px solid #e8ebf0;border-radius:12px;overflow:hidden;margin-top:18px}
+    .table-card h4{margin:0;padding:18px 20px;font:800 15px Manrope;border-bottom:1px solid #edf0f3}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{text-align:left;padding:12px 20px;color:#788394;font-size:10px;letter-spacing:1px;background:#f7f8fb}
+    td{padding:13px 20px;border-top:1px solid #edf0f3}
+    .pill2{font-size:9px;font-weight:700;padding:5px 8px;border-radius:20px;background:#eff8e6;color:#4e7930}
+    .pill2.pending{background:#fff4e5;color:#9a6a00}
+    @media(max-width:800px){.dash-grid{grid-template-columns:1fr}table{font-size:11px}th,td{padding:10px 12px}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark">G</span><span>GITTS<span class="brand-dot">.</span></span></a>
+    <nav><a href="/">Home</a><a href="/#books">Books</a><a href="#" id="logoutBtn">Logout</a></nav>
+    <a class="top-cta" href="/#books">Buy a book <span>↗</span></a>
+  </header>
+
+  <main class="dash-wrap">
+    <div class="eyebrow" style="color:#77934e">MY PANEL</div>
+    <h2 style="font:800 32px Manrope;letter-spacing:-1px;margin:10px 0 4px">Welcome, <span id="userName">...</span></h2>
+    <p style="color:#788394;font-size:13px;margin:0">Your referral link, earnings and books - all in one place.</p>
+
+    <div class="dash-grid">
+      <div class="dash-card green"><small>AVAILABLE BALANCE</small><h3 id="balance">KSh 0</h3><p>Ready to withdraw. Request below.</p></div>
+      <div class="dash-card"><small>TOTAL EARNED</small><h3 id="totalEarned">KSh 0</h3><p>From registration referrals.</p></div>
+      <div class="dash-card"><small>PEOPLE REFERRED</small><h3 id="refCount">0</h3><p id="refBreakdown">Level 1: 0 • Level 2: 0</p></div>
+    </div>
+
+    <div class="ref-box">
+      <div><b>🔗 Your Referral Link</b><p style="font-size:11px;color:#78836e;margin:4px 0 0">Share this. You get KSh 50 when they join, KSh 30 when they invite someone.</p><code id="refLink">Loading...</code></div>
+      <button class="primary-btn" id="copyBtn" style="padding:12px 16px">Copy Link →</button>
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <button class="primary-btn" id="withdrawBtn">Request Withdrawal →</button>
+      <span class="secure-note" style="align-self:center">Min withdrawal KSh 200 • Admin approves within 24h</span>
+    </div>
+    <p class="checkout-status" id="withdrawStatus" style="margin-top:10px"></p>
+
+    <div class="table-card">
+      <h4>My Referrals</h4>
+      <table><thead><tr><th>NAME</th><th>LEVEL</th><th>STATUS</th><th>YOU EARNED</th><th>DATE</th></tr></thead><tbody id="refTable"><tr><td colspan="5" style="text-align:center;color:#9aa3af">Loading...</td></tr></tbody></table>
+    </div>
+
+    <div class="table-card">
+      <h4>My Books</h4>
+      <table><thead><tr><th>BOOK</th><th>PRICE</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody id="booksTable"><tr><td colspan="4" style="text-align:center;color:#9aa3af">Loading...</td></tr></tbody></table>
+    </div>
+
+    <div class="table-card">
+      <h4>Withdrawal History</h4>
+      <table><thead><tr><th>AMOUNT</th><th>PHONE</th><th>STATUS</th><th>DATE</th></tr></thead><tbody id="withdrawTable"><tr><td colspan="4" style="text-align:center;color:#9aa3af">Loading...</td></tr></tbody></table>
+    </div>
+  </main>
+
+  <footer><a class="brand" href="/"><span class="brand-mark">G</span><span>GITTS<span class="brand-dot">.</span></span></a><span>© <span id="year"></span> GITTS</span><span>Knowledge, made accessible.</span></footer>
+
+<script>
+document.getElementById("year").textContent = new Date().getFullYear();
+const token = localStorage.getItem("gitts_token");
+if (!token) window.location.href = "/";
+
+async function loadDashboard() {
+  try {
+    const res = await fetch("/api/me", { headers: { "Authorization": "Bearer " + token } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Session expired");
+    const u = data.user;
+    document.getElementById("userName").textContent = u.name.split(" ")[0];
+    document.getElementById("balance").textContent = "KSh " + (u.balance || 0);
+    document.getElementById("totalEarned").textContent = "KSh " + (u.totalEarned || 0);
+    document.getElementById("refCount").textContent = (data.referrals || []).length;
+    const l1 = (data.referrals || []).filter(r => r.level === 1).length;
+    const l2 = (data.referrals || []).filter(r => r.level === 2).length;
+    document.getElementById("refBreakdown").textContent = `Level 1: ${l1} • Level 2: ${l2}`;
+    const link = window.location.origin + "/?ref=" + (u.referralCode || "");
+    document.getElementById("refLink").textContent = link;
+    // Referrals table
+    document.getElementById("refTable").innerHTML = (data.referrals || []).length ? (data.referrals || []).map(r => `<tr><td><b>${r.name}</b><br><span style="color:#9aa3af">${r.email}</span></td><td>Level ${r.level}</td><td><span class="pill2 ${r.status === 'PAID' ? '' : 'pending'}">${r.status}</span></td><td>KSh ${r.commission}</td><td>${new Date(r.createdAt).toLocaleDateString()}</td></tr>`).join("") : `<tr><td colspan="5" style="text-align:center">No referrals yet. Share your link above!</td></tr>`;
+    // Books
+    document.getElementById("booksTable").innerHTML = (data.books || []).length ? (data.books || []).map(b => `<tr><td>${b.name}</td><td>KSh ${b.price}</td><td><span class="pill2">${b.status}</span></td><td><a href="${b.downloadUrl || '#'}" style="color:#5e8c32;font-weight:700">Download →</a></td></tr>`).join("") : `<tr><td colspan="4" style="text-align:center">No books yet. <a href="/#books" style="color:#5e8c32;font-weight:700">Browse library →</a></td></tr>`;
+    // Withdrawals
+    document.getElementById("withdrawTable").innerHTML = (data.withdrawals || []).length ? (data.withdrawals || []).map(w => `<tr><td>KSh ${w.amount}</td><td>${w.phone}</td><td><span class="pill2 ${w.status === 'PAID' ? '' : 'pending'}">${w.status}</span></td><td>${new Date(w.createdAt).toLocaleDateString()}</td></tr>`).join("") : `<tr><td colspan="4" style="text-align:center">No withdrawals yet.</td></tr>`;
+  } catch (e) {
+    alert(e.message + " Please login again.");
+    localStorage.removeItem("gitts_token");
+    window.location.href = "/";
+  }
+}
+loadDashboard();
+
+document.getElementById("copyBtn").addEventListener("click", async () => {
+  const link = document.getElementById("refLink").textContent;
+  try { await navigator.clipboard.writeText(link); alert("Link copied! Share it on WhatsApp."); }
+  catch { prompt("Copy your link:", link); }
+});
+
+document.getElementById("withdrawBtn").addEventListener("click", async () => {
+  const amount = prompt("How much do you want to withdraw? (Min KSh 200)");
+  if (!amount || isNaN(amount)) return;
+  const phone = prompt("Enter M-Pesa number to receive payment (e.g. 0712345678):");
+  if (!phone) return;
+  const status = document.getElementById("withdrawStatus");
+  status.textContent = "Sending request..."; status.className = "checkout-status";
+  try {
+    const res = await fetch("/api/withdraw", {
+      method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+      body: JSON.stringify({ amount: Number(amount), phone })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed.");
+    status.textContent = "Withdrawal requested! Admin will approve and send via M-Pesa.";
+    status.className = "checkout-status success";
+    loadDashboard();
+  } catch (e) { status.textContent = e.message; status.className = "checkout-status error"; }
+});
+
+document.getElementById("logoutBtn").addEventListener("click", e => {
+  e.preventDefault();
+  localStorage.removeItem("gitts_token"); localStorage.removeItem("gitts_user");
+  window.location.href = "/";
+});
+</script>
+</body>
+</html>
