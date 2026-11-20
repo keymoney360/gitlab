@@ -51,7 +51,7 @@ module.exports = async (req, res) => {
         BusinessShortCode: MPESA_SHORTCODE,
         Password: password,
         Timestamp: timestamp,
-        TransactionType: "CustomerPayBillOnline",
+        TransactionType: "CustomerBuyGoodsOnline",
         Amount: 300,
         PartyA: phone,
         PartyB: MPESA_SHORTCODE,
