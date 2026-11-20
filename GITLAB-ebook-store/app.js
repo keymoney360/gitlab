@@ -85,26 +85,38 @@ async function doRegister() {
 }
 
 // --- PAY 300 ---
+async function safeJson(res) {
+  const text = await res.text();
+  if (!text) throw new Error("Server returned empty response (Vercel crash / timeout) - Check Vercel > Logs > pay-membership");
+  try { return JSON.parse(text); }
+  catch { throw new Error("Server returned non-JSON (" + res.status + "): " + text.slice(0, 200)); }
+}
+
 async function doPay300() {
   let phone = document.getElementById("payPhone").value.trim();
   if (!phone) return showAlert("Enter M-Pesa number.");
-  // Normalize to 254...
   if (phone.startsWith("0")) phone = "254" + phone.slice(1);
   if (phone.length !== 12) return showAlert("Enter valid number e.g. 0712345678");
 
+  const token = localStorage.getItem("gitts_token");
+  if (!token || token === "null") {
+    showAlert("Session expired - Login again, then Pay.");
+    setTimeout(() => switchAuth("login"), 1000);
+    return;
+  }
+
   showAlert("Sending M-Pesa prompt to " + phone + "... Check your phone.");
   try {
-    const token = localStorage.getItem("gitts_token");
     const res = await fetch("/api/pay-membership", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
       body: JSON.stringify({ phone })
     });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "STK failed");
     showAlert("STK sent! Enter M-Pesa PIN on your phone, then click Login below.");
     setTimeout(() => switchAuth("login"), 2000);
-  } catch (e) { showAlert(e.message); }
+  } catch (e) { showAlert("Server error: " + e.message); }
 }
 
 // --- LOGIN ---
