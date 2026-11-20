@@ -1,3 +1,4 @@
+// api/_db.js - FINAL: With membership fields so callback can save
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -25,24 +26,28 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, unique: true },
   phone: String,
   password: String,
+  // THIS is the ONE referral code field - unique, used everywhere
   referralCode: { type: String, unique: true, sparse: true },
-  referredBy: String,
-  referredByCode: String,
+  referredBy: String, // stores referrer's EMAIL
+  referredByCode: String, // stores referrer's CODE
+
+  // --- MEMBERSHIP / PAYMENT FIELDS ---
+  // These are the fields the callback sets - DO NOT rename them
   isPaid: { type: Boolean, default: false },
   membershipPaid: { type: Boolean, default: false },
-  membershipStatus: { type: String, default: "inactive" },
+  membershipStatus: { type: String, default: "inactive" }, // "inactive" | "active"
   membershipPaidAt: Date,
   membershipExpiresAt: Date,
   lastMpesaReceipt: String,
   lastCheckoutRequestID: String,
-  purchasedBooks: { type: [String], default: [] },
+  purchasedBooks: { type: [String], default: [] }, // e.g. ["forex-journal", "forex-discipline"]
+
   balance: { type: Number, default: 0 },
   totalEarned: { type: Number, default: 0 },
   resetCode: String,
   resetExpiry: Date,
   createdAt: { type: Date, default: Date.now }
 });
-
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
 const ReferralSchema = new mongoose.Schema({
