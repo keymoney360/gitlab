@@ -17,7 +17,7 @@
     .dash-card.green{background:#08111f;color:white;border-color:#08111f}
     .dash-card.green p{color:#aeb8c8}.dash-card.green h3{color:#b5f36b}
     .table-card{background:white;border:1px solid #e8ebf0;border-radius:12px;overflow:hidden;margin-top:18px}
-    .table-card h4{margin:0;padding:18px 20px;font:800 15px Manrope;border-bottom:1px solid #edf0f3;display:flex;justify-content:space-between;align-items:center}
+    .table-card h4{margin:0;padding:18px 20px;font:800 15px Manrope;border-bottom:1px solid #edf0f3;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
     table{width:100%;border-collapse:collapse;font-size:12px}
     th{text-align:left;padding:12px 20px;color:#788394;font-size:10px;letter-spacing:1px;background:#f7f8fb}
     td{padding:13px 20px;border-top:1px solid #edf0f3;vertical-align:top}
@@ -29,13 +29,12 @@
     .form-grid input,.form-grid select{width:100%;padding:12px;border:1px solid #dce2e9;border-radius:7px;font:14px "DM Sans"}
     .form-grid label{font-size:11px;font-weight:700;display:block;margin-bottom:6px}
     @media(max-width:800px){.dash-grid{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}}
-    /* PASSCODE SCREEN */
     #passcodeScreen{max-width:400px;margin:80px auto;padding:35px 25px;background:white;border:1px solid #e8ebf0;border-radius:14px;text-align:center;box-shadow:0 10px 30px #17263a10}
     #passcodeScreen h2{font:800 22px Manrope;margin:8px 0 6px}
     #passcodeScreen p{font-size:13px;color:#788394;margin:0 0 18px}
     #passcodeScreen input{width:100%;padding:13px;border:1px solid #dce2e9;border-radius:8px;font-size:16px;text-align:center;letter-spacing:1px;margin-bottom:12px}
     #passcodeScreen button{width:100%;padding:13px;border:0;border-radius:8px;background:#08111f;color:white;font-weight:700;font-size:14px;cursor:pointer}
-    #passcodeError{color:#bd3939;font-size:12px;min-height:16px;margin-top:10px}
+    #passcodeError{color:#bd3939;font-size:12px;min-height:16px;margin-top:10px;word-break:break-word}
   </style>
 </head>
 <body>
@@ -45,7 +44,6 @@
     <a class="top-cta" href="/#books">View Site <span>↗</span></a>
   </header>
 
-  <!-- PASSCODE SCREEN - shows first, dashboard hidden -->
   <div id="passcodeScreen">
     <div style="font-size:32px">🔒</div>
     <h2>Admin Access</h2>
@@ -102,7 +100,6 @@ if (!token) window.location.href = "/";
 let allMembers = [];
 let adminPasscode = sessionStorage.getItem("gitts_admin_passcode") || "";
 
-// If we already unlocked this session, skip passcode screen
 if (adminPasscode) {
   document.getElementById("passcodeScreen").style.display = "none";
   document.getElementById("checking").style.display = "block";
@@ -124,14 +121,18 @@ async function loadAdmin() {
   try {
     const res = await fetch("/api/admin?action=overview", { headers: { "Authorization": "Bearer " + token, "x-admin-passcode": adminPasscode } });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Not admin");
+    if (!res.ok) {
+      let msg = data.error || "Not admin";
+      if (data.debug_dbEmail) msg += " | DB: " + data.debug_dbEmail + " | Token: " + (data.debug_tokenEmail || "-");
+      throw new Error(msg);
+    }
     document.getElementById("checking").style.display = "none";
     document.getElementById("adminContent").style.display = "block";
     document.getElementById("totalMembers").textContent = data.totalMembers || 0;
     document.getElementById("paidMembers").textContent = data.paidMembers || 0;
     document.getElementById("regMoney").textContent = "KSh " + ((data.paidMembers || 0) * 300);
     document.getElementById("pendingWd").textContent = (data.withdrawals || []).filter(w => w.status === "PENDING").length;
-    document.getElementById("wdTable").innerHTML = (data.withdrawals || []).length ? data.withdrawals.map(w => `<tr><td><b>${w.userName}</b><br><span style="color:#9aa3af">${w.userEmail}</span></td><td>KSh ${w.amount}</td><td>${w.phone}</td><td><span class="pill2 ${w.status === "PAID" ? "" : "pending"}">${w.status}</span></td><td>${w.status === "PENDING" ? `<button class="btn btn-approve" onclick="approveWd('${w._id}')">Approve & Paid →</button> <button class="btn btn-reject" onclick="rejectWd('${w._id}')">Reject</button>` : "-"}</td></tr>`).join("") : `<tr><td colspan="5" style="text-align:center">No withdrawals yet.</td></tr>`;
+    document.getElementById("wdTable").innerHTML = (data.withdrawals || []).length ? data.withdrawals.map(w => `<tr><td><b>${w.userName || "-"}</b><br><span style="color:#9aa3af">${w.userEmail || ""}</span></td><td>KSh ${w.amount}</td><td>${w.phone || "-"}</td><td><span class="pill2 ${w.status === "PAID" ? "" : "pending"}">${w.status}</span></td><td>${w.status === "PENDING" ? `<button class="btn btn-approve" onclick="approveWd('${w._id || w.id}')">Approve & Paid →</button> <button class="btn btn-reject" onclick="rejectWd('${w._id || w.id}')">Reject</button>` : "-"}</td></tr>`).join("") : `<tr><td colspan="5" style="text-align:center">No withdrawals yet.</td></tr>`;
     allMembers = data.members || [];
     renderMembers(allMembers);
   } catch (e) {
@@ -139,16 +140,16 @@ async function loadAdmin() {
     adminPasscode = "";
     document.getElementById("checking").style.display = "none";
     document.getElementById("passcodeScreen").style.display = "block";
-    document.getElementById("passcodeError").textContent = e.message === "Wrong admin passcode" ? "Wrong passcode. Try again." : e.message;
+    document.getElementById("passcodeError").textContent = e.message;
     document.getElementById("passcodeInput").value = "";
   }
 }
 function renderMembers(list) {
-  document.getElementById("memberTable").innerHTML = list.length ? list.map(m => `<tr><td><b>${m.name}</b><br><span style="color:#9aa3af">${m.email}</span></td><td>${m.phone}</td><td>${m.referredBy || "-"}</td><td><span class="pill2 ${m.registrationPaid ? "" : "pending"}">${m.registrationPaid ? "PAID" : "PENDING"}</span></td><td>KSh ${m.balance || 0}</td><td>${new Date(m.createdAt).toLocaleDateString()}</td></tr>`).join("") : `<tr><td colspan="6" style="text-align:center">No members yet.</td></tr>`;
+  document.getElementById("memberTable").innerHTML = list.length ? list.map(m => `<tr><td><b>${m.name || "-"}</b><br><span style="color:#9aa3af">${m.email || ""}</span></td><td>${m.phone || "-"}</td><td>${m.referredBy || "-"}</td><td><span class="pill2 ${m.registrationPaid ? "" : "pending"}">${m.registrationPaid ? "PAID" : "PENDING"}</span></td><td>KSh ${m.balance || 0}</td><td>${m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "-"}</td></tr>`).join("") : `<tr><td colspan="6" style="text-align:center">No members yet.</td></tr>`;
 }
 document.getElementById("searchMember").addEventListener("input", e => {
   const q = e.target.value.toLowerCase();
-  renderMembers(allMembers.filter(m => (m.name + m.email).toLowerCase().includes(q)));
+  renderMembers(allMembers.filter(m => ((m.name || "") + (m.email || "")).toLowerCase().includes(q)));
 });
 async function approveWd(id) {
   if (!confirm("Have you sent the money via M-Pesa to this member? Click OK to mark as PAID.")) return;
