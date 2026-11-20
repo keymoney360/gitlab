@@ -1,5 +1,7 @@
 const { connect, auth } = require("./_db");
 
+const clean = (v) => String(v || "").trim().replace(/^["']|["']$/g, "").trim();
+
 async function safeJson(res, label) {
   const text = await res.text();
   if (!text) throw new Error(label + " returned EMPTY response (status " + res.status + ") - Check MPESA keys / environment");
@@ -21,14 +23,13 @@ module.exports = async (req, res) => {
     if (cleanPhone.startsWith("0")) cleanPhone = "254" + cleanPhone.slice(1);
     if (cleanPhone.startsWith("+")) cleanPhone = cleanPhone.slice(1);
 
-    const clean = (v) => String(v || "").trim().replace(/^["']|["']$/g, "").trim();
-const consumerKey = clean(process.env.MPESA_CONSUMER_KEY);
-const consumerSecret = clean(process.env.MPESA_CONSUMER_SECRET);
-const shortcode = clean(process.env.MPESA_SHORTCODE || process.env.MPESA_PAYBILL);
-const passkey = clean(process.env.MPESA_PASSKEY);
-    
+    const consumerKey = clean(process.env.MPESA_CONSUMER_KEY);
+    const consumerSecret = clean(process.env.MPESA_CONSUMER_SECRET);
+    const shortcode = clean(process.env.MPESA_SHORTCODE || process.env.MPESA_PAYBILL);
+    const passkey = clean(process.env.MPESA_PASSKEY);
+
     if (!consumerKey || !consumerSecret || !shortcode || !passkey) {
-      return res.status(500).json({ error: "M-Pesa NOT configured in Vercel. Missing: " + (!consumerKey ? "KEY " : "") + (!consumerSecret ? "SECRET " : "") + (!shortcode ? "SHORTCODE " : "") + (!passkey ? "PASSKEY" : "") });
+      return res.status(500).json({ error: "M-Pesa NOT configured. Missing: " + (!consumerKey ? "KEY " : "") + (!consumerSecret ? "SECRET " : "") + (!shortcode ? "SHORTCODE " : "") + (!passkey ? "PASSKEY" : "") });
     }
 
     const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
@@ -36,7 +37,7 @@ const passkey = clean(process.env.MPESA_PASSKEY);
       headers: { Authorization: `Basic ${authStr}` }
     });
     const tokenData = await safeJson(tokenRes, "Safaricom OAuth");
-    if (!tokenData.access_token) return res.status(500).json({ error: "M-Pesa auth failed - Safaricom says: " + JSON.stringify(tokenData) });
+    if (!tokenData.access_token) return res.status(500).json({ error: "M-Pesa auth failed: " + JSON.stringify(tokenData) });
 
     const now = new Date();
     const pad = (n) => String(n).padStart(2, "0");
