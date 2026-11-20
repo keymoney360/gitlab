@@ -1,6 +1,7 @@
 const { connect, auth } = require("./_db");
 
 module.exports = async (req, res) => {
+  res.setHeader("Content-Type", "application/json");
   try {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     await connect();
@@ -9,8 +10,9 @@ module.exports = async (req, res) => {
     const { phone } = req.body || {};
     if (!phone) return res.status(400).json({ error: "Phone required" });
 
-    let cleanPhone = phone.replace(/\s/g, "");
+    let cleanPhone = String(phone).replace(/\s/g, "");
     if (cleanPhone.startsWith("0")) cleanPhone = "254" + cleanPhone.slice(1);
+    if (cleanPhone.startsWith("+")) cleanPhone = cleanPhone.slice(1);
 
     const consumerKey = process.env.MPESA_CONSUMER_KEY;
     const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
@@ -21,27 +23,21 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: "M-Pesa NOT configured in Vercel. Add MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_SHORTCODE, MPESA_PASSKEY in Vercel > Settings > Environment Variables" });
     }
 
-    const callbackUrl = process.env.MPESA_CALLBACK_URL || "https://gitlab-sage.vercel.app/api/callback";
     const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
     const tokenRes = await fetch("https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", {
       headers: { Authorization: `Basic ${authStr}` }
     });
     const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) return res.status(500).json({ error: "M-Pesa auth failed - check Consumer Key/Secret" });
-    const accessToken = tokenData.access_token;
+    if (!tokenData.access_token) return res.status(500).json({ error: "M-Pesa auth failed - check Consumer Key/Secret. Safaricom says: " + JSON.stringify(tokenData) });
 
     const now = new Date();
-    const timestamp = now.getFullYear().toString() +
-      String(now.getMonth()+1).padStart(2,"0") +
-      String(now.getDate()).padStart(2,"0") +
-      String(now.getHours()).padStart(2,"0") +
-      String(now.getMinutes()).padStart(2,"0") +
-      String(now.getSeconds()).padStart(2,"0");
+    const pad = (n) => String(n).padStart(2, "0");
+    const timestamp = now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
     const password = Buffer.from(shortcode + passkey + timestamp).toString("base64");
 
     const stkRes = await fetch("https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest", {
       method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${tokenData.access_token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         BusinessShortCode: shortcode,
         Password: password,
@@ -51,14 +47,14 @@ module.exports = async (req, res) => {
         PartyA: cleanPhone,
         PartyB: shortcode,
         PhoneNumber: cleanPhone,
-        CallBackURL: callbackUrl,
+        CallBackURL: "https://gitlab-sage.vercel.app/api/callback",
         AccountReference: me.email,
         TransactionDesc: "GITLAB Membership 300"
       })
     });
     const stkData = await stkRes.json();
     if (stkData.ResponseCode !== "0") {
-      return res.status(400).json({ error: stkData.ResponseDescription || "STK failed - check Shortcode/Passkey" });
+      return res.status(400).json({ error: stkData.ResponseDescription || "STK failed - check Shortcode/Passkey. " + JSON.stringify(stkData) });
     }
     return res.json({ success: true, checkoutId: stkData.CheckoutRequestID });
   } catch (e) {
