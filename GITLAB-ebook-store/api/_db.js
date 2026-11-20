@@ -13,10 +13,10 @@ async function connect() {
     }).then(m => m);
   }
   cached.conn = await cached.promise;
-  // AUTO-FIX: Drop bad unique index that blocks every new user
-  try { await mongoose.connection.collection("users").dropIndex("referralCode_1"); } catch {}
+  // AUTO-FIX: Drop bad indexes that block new users
   try { await mongoose.connection.collection("users").dropIndex("phone_1"); } catch {}
   try { await mongoose.connection.collection("users").dropIndex("refCode_1"); } catch {}
+  // Do NOT drop referralCode_1 anymore - we NEED it unique now
   return cached.conn;
 }
 
@@ -25,10 +25,12 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, unique: true },
   phone: String,
   password: String,
-  referralCode: { type: String },
-  refCode: String,
-  referredBy: String,
+  // THIS is the ONE referral code field - unique, used everywhere
+  referralCode: { type: String, unique: true, sparse: true },
+  referredBy: String, // stores referrer's EMAIL
+  referredByCode: String, // stores referrer's CODE
   isPaid: { type: Boolean, default: false },
+  membershipPaid: { type: Boolean, default: false },
   balance: { type: Number, default: 0 },
   totalEarned: { type: Number, default: 0 },
   resetCode: String,
