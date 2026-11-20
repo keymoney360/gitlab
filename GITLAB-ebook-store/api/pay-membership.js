@@ -1,12 +1,19 @@
 const { connect, auth } = require("./_db");
 
+async function safeJson(res, label) {
+  const text = await res.text();
+  if (!text) throw new Error(label + " returned EMPTY response (status " + res.status + ") - Check MPESA keys / environment");
+  try { return JSON.parse(text); }
+  catch { throw new Error(label + " returned non-JSON (status " + res.status + "): " + text.slice(0, 300)); }
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Content-Type", "application/json");
   try {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     await connect();
     const me = auth(req);
-    if (!me) return res.status(401).json({ error: "Login required - please Login again" });
+    if (!me) return res.status(401).json({ error: "Login required" });
     const { phone } = req.body || {};
     if (!phone) return res.status(400).json({ error: "Phone required" });
 
@@ -20,15 +27,15 @@ module.exports = async (req, res) => {
     const passkey = process.env.MPESA_PASSKEY;
 
     if (!consumerKey || !consumerSecret || !shortcode || !passkey) {
-      return res.status(500).json({ error: "M-Pesa NOT configured in Vercel. Add MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_SHORTCODE, MPESA_PASSKEY in Vercel > Settings > Environment Variables" });
+      return res.status(500).json({ error: "M-Pesa NOT configured in Vercel. Missing: " + (!consumerKey ? "KEY " : "") + (!consumerSecret ? "SECRET " : "") + (!shortcode ? "SHORTCODE " : "") + (!passkey ? "PASSKEY" : "") });
     }
 
     const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
     const tokenRes = await fetch("https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", {
       headers: { Authorization: `Basic ${authStr}` }
     });
-    const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) return res.status(500).json({ error: "M-Pesa auth failed - check Consumer Key/Secret. Safaricom says: " + JSON.stringify(tokenData) });
+    const tokenData = await safeJson(tokenRes, "Safaricom OAuth");
+    if (!tokenData.access_token) return res.status(500).json({ error: "M-Pesa auth failed - Safaricom says: " + JSON.stringify(tokenData) });
 
     const now = new Date();
     const pad = (n) => String(n).padStart(2, "0");
@@ -52,9 +59,9 @@ module.exports = async (req, res) => {
         TransactionDesc: "GITLAB Membership 300"
       })
     });
-    const stkData = await stkRes.json();
+    const stkData = await safeJson(stkRes, "Safaricom STK");
     if (stkData.ResponseCode !== "0") {
-      return res.status(400).json({ error: stkData.ResponseDescription || "STK failed - check Shortcode/Passkey. " + JSON.stringify(stkData) });
+      return res.status(400).json({ error: stkData.ResponseDescription || "STK failed: " + JSON.stringify(stkData) });
     }
     return res.json({ success: true, checkoutId: stkData.CheckoutRequestID });
   } catch (e) {
