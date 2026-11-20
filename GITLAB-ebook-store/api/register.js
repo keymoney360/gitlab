@@ -1,19 +1,57 @@
-const { connect, User, bcrypt, makeCode } = require("./_db");
+const { connect, User, Referral, bcrypt, jwt } = require("./_db");
+
+function makeCode() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
 module.exports = async (req, res) => {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  await connect();
-  const { name, email, password, phone, referralCode } = req.body;
-  if (!name || !email || !password || password.length < 6) return res.status(400).json({ error: "Invalid details" });
-  if (await User.findOne({ email })) return res.status(400).json({ error: "Email already registered. Login instead." });
-  const hash = await bcrypt.hash(password, 10);
-  let referredBy = null;
-  if (referralCode) {
-    const ref = await User.findOne({ referralCode: referralCode.toUpperCase() });
-    if (ref) referredBy = ref.email;
+  try {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    await connect();
+    const { name, email, phone, password, referralCode } = req.body || {};
+    if (!name || !email || !phone || !password) return res.status(400).json({ error: "Fill all fields" });
+    if (password.length < 6) return res.status(400).json({ error: "Password min 6" });
+
+    const exists = await User.findOne({ email: email.toLowerCase() });
+    if (exists) return res.status(400).json({ error: "Email already registered. Login instead." });
+
+    const hashed = await bcrypt.hash(password, 10);
+    const myCode = makeCode();
+
+    const user = await User.create({
+      name, email: email.toLowerCase(), phone, password: hashed,
+      referralCode: myCode,
+      referredBy: referralCode ? referralCode.toUpperCase() : null,
+      isPaid: false, balance: 0, totalEarned: 0
+    });
+
+    // Save referral record for later commission (when they pay 300)
+    if (referralCode) {
+      const referrer = await User.findOne({ referralCode: referralCode.toUpperCase() });
+      if (referrer) {
+        await Referral.create({
+          referrerEmail: referrer.email,
+          name: user.name, email: user.email,
+          level: 1, commission: 50, status: "PENDING"
+        });
+        // Level 2 - who referred the referrer?
+        if (referrer.referredBy) {
+          const l2 = await User.findOne({ referralCode: referrer.referredBy });
+          if (l2) {
+            await Referral.create({
+              referrerEmail: l2.email,
+              name: user.name, email: user.email,
+              level: 2, commission: 30, status: "PENDING"
+            });
+          }
+        }
+      }
+    }
+
+    const token = jwt.sign({ email: user.email }, process.env.JWT_SECRET || "gitlab-secret", { expiresIn: "7d" });
+    return res.json({ success: true, token, user: { name: user.name, email: user.email, referralCode: myCode } });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Server error: " + e.message });
   }
-  const user = await User.create({
-    name, email, password: hash, phone,
-    referralCode: makeCode(name), referredBy, registrationPaid: false
-  });
-  res.json({ success: true, user: { name: user.name, email: user.email } });
 };
