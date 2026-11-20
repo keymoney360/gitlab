@@ -2,7 +2,7 @@
 const { connect, User, auth } = require("../_db");
 const mongoose = require("mongoose");
 
-const ADMIN_EMAILS = ["kimaniian githua@gmail.com"]; // <-- YOUR admin email, exact as in Atlas
+const ADMIN_EMAILS = ["kimaniiangithua@gmail.com"]; // <-- YOUR admin email, exact as in Atlas
 
 module.exports = async (req, res) => {
   res.setHeader("Content-Type", "application/json");
