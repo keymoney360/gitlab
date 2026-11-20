@@ -1,5 +1,5 @@
 // api/admin/withdraw/[id]/reject.js - LOCKED ADMIN ONLY + REFUND
-const { connect, User, auth } = require("../../../_db");
+const { connect, User, auth } = require("../../../../_db");
 const mongoose = require("mongoose");
 
 const ADMIN_EMAILS = [
