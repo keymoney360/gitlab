@@ -1,34 +1,26 @@
-// api/admin/overview.js - LOCKED ADMIN ONLY
+// DEBUG - will show your real email in the alert
 const { connect, User, auth } = require("../_db");
 const mongoose = require("mongoose");
 
-// === YOUR ADMIN EMAIL - PUT BOTH VERSIONS ===
-const ADMIN_EMAILS = [
-  "kimaniian githua@gmail.com",
-  "kimaniangithua@gmail.com"
-];
-
-// Ignore spaces / caps when comparing
+const ADMIN_EMAILS = ["kimaniian githua@gmail.com", "kimaniangithua@gmail.com"];
 const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, "");
 const isAdmin = (email) => ADMIN_EMAILS.map(norm).includes(norm(email));
 
 module.exports = async (req, res) => {
   res.setHeader("Content-Type", "application/json");
-
-  // LOCK 1: Must be logged in
   const d = auth(req);
   if (!d) return res.status(401).json({ error: "Login again" });
-
   await connect();
-
   let u = null;
   if (d.id) { try { u = await User.findById(d.id); } catch {} }
   if (!u && d.email) u = await User.findOne({ email: d.email });
   if (!u) return res.status(404).json({ error: "User not found" });
 
-  // LOCK 2: Must be YOUR email
+  // DEBUG: show what server sees
   if (!isAdmin(u.email)) {
-    return res.status(403).json({ error: "Not admin" });
+    return res.status(403).json({ 
+      error: "Not admin. YOUR EMAIL IN DB IS: [" + u.email + "] | TOKEN EMAIL IS: [" + d.email + "] | TOKEN ID: [" + d.id + "]" 
+    });
   }
 
   const totalMembers = await User.countDocuments({});
@@ -37,24 +29,15 @@ module.exports = async (req, res) => {
   const db = mongoose.connection.db;
   let withdrawals = [];
   try { withdrawals = await db.collection("withdrawals").find({}).sort({ createdAt: -1 }).limit(100).toArray(); } catch {}
-
   const cleanMembers = members.map(m => ({
     name: m.name, email: m.email, phone: m.phone,
-    referredBy: m.referredBy || "-",
-    registrationPaid: !!(m.isPaid || m.membershipPaid),
-    balance: m.balance || 0,
-    createdAt: m.createdAt || m._id.getTimestamp()
+    referredBy: m.referredBy || "-", registrationPaid: !!(m.isPaid || m.membershipPaid),
+    balance: m.balance || 0, createdAt: m.createdAt || m._id.getTimestamp()
   }));
-
   const cleanWd = withdrawals.map(w => ({
-    _id: String(w._id),
-    userName: w.userName || w.name || "Member",
-    userEmail: w.userEmail || w.email || "",
-    amount: w.amount,
-    phone: w.phone,
-    status: w.status || "PENDING",
-    createdAt: w.createdAt || w._id.getTimestamp()
+    _id: String(w._id), userName: w.userName || w.name || "Member",
+    userEmail: w.userEmail || w.email || "", amount: w.amount, phone: w.phone,
+    status: w.status || "PENDING", createdAt: w.createdAt || w._id.getTimestamp()
   }));
-
   return res.json({ totalMembers, paidMembers, members: cleanMembers, withdrawals: cleanWd });
 };
