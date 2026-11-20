@@ -1,13 +1,24 @@
-// api/admin/overview.js
+// api/admin/overview.js - LOCKED ADMIN ONLY
 const { connect, User, auth } = require("../_db");
 const mongoose = require("mongoose");
 
-const ADMIN_EMAILS = ["kimaniiangithua@gmail.com"]; // <-- YOUR admin email, exact as in Atlas
+// === YOUR ADMIN EMAIL - PUT BOTH VERSIONS ===
+const ADMIN_EMAILS = [
+  "kimaniian githua@gmail.com",
+  "kimaniangithua@gmail.com"
+];
+
+// Ignore spaces / caps when comparing
+const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, "");
+const isAdmin = (email) => ADMIN_EMAILS.map(norm).includes(norm(email));
 
 module.exports = async (req, res) => {
   res.setHeader("Content-Type", "application/json");
+
+  // LOCK 1: Must be logged in
   const d = auth(req);
   if (!d) return res.status(401).json({ error: "Login again" });
+
   await connect();
 
   let u = null;
@@ -15,8 +26,8 @@ module.exports = async (req, res) => {
   if (!u && d.email) u = await User.findOne({ email: d.email });
   if (!u) return res.status(404).json({ error: "User not found" });
 
-  // Only admin can see this page
-  if (!ADMIN_EMAILS.includes(u.email)) {
+  // LOCK 2: Must be YOUR email
+  if (!isAdmin(u.email)) {
     return res.status(403).json({ error: "Not admin" });
   }
 
@@ -27,7 +38,6 @@ module.exports = async (req, res) => {
   let withdrawals = [];
   try { withdrawals = await db.collection("withdrawals").find({}).sort({ createdAt: -1 }).limit(100).toArray(); } catch {}
 
-  // Normalize for admin.html - it expects userName, userEmail, registrationPaid
   const cleanMembers = members.map(m => ({
     name: m.name, email: m.email, phone: m.phone,
     referredBy: m.referredBy || "-",
