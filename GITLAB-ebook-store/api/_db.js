@@ -25,18 +25,24 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, unique: true },
   phone: String,
   password: String,
-  // THIS is the ONE referral code field - unique, used everywhere
   referralCode: { type: String, unique: true, sparse: true },
-  referredBy: String, // stores referrer's EMAIL
-  referredByCode: String, // stores referrer's CODE
+  referredBy: String,
+  referredByCode: String,
   isPaid: { type: Boolean, default: false },
   membershipPaid: { type: Boolean, default: false },
+  membershipStatus: { type: String, default: "inactive" },
+  membershipPaidAt: Date,
+  membershipExpiresAt: Date,
+  lastMpesaReceipt: String,
+  lastCheckoutRequestID: String,
+  purchasedBooks: { type: [String], default: [] },
   balance: { type: Number, default: 0 },
   totalEarned: { type: Number, default: 0 },
   resetCode: String,
   resetExpiry: Date,
   createdAt: { type: Date, default: Date.now }
 });
+
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
 const ReferralSchema = new mongoose.Schema({
