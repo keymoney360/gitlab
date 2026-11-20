@@ -55,7 +55,7 @@
 
     <div style="display:flex;gap:12px;flex-wrap:wrap">
       <button class="primary-btn" id="withdrawBtn">Request Withdrawal →</button>
-      <span class="secure-note" style="align-self:center">Min withdrawal KSh 200 • Admin approves within 24h</span>
+      <span class="secure-note" style="align-self:center">Min withdrawal KSh 50 • Admin approves within 24h</span>
     </div>
     <p class="checkout-status" id="withdrawStatus" style="margin-top:10px"></p>
 
@@ -118,7 +118,7 @@ document.getElementById("copyBtn").addEventListener("click", async () => {
 });
 
 document.getElementById("withdrawBtn").addEventListener("click", async () => {
-  const amount = prompt("How much do you want to withdraw? (Min KSh 200)");
+  const amount = prompt("How much do you want to withdraw? (Min KSh 50)");
   if (!amount || isNaN(amount)) return;
   const phone = prompt("Enter M-Pesa number to receive payment (e.g. 0712345678):");
   if (!phone) return;
