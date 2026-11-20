@@ -29,11 +29,14 @@ module.exports = async (req, res) => {
     const passkey = clean(process.env.MPESA_PASSKEY);
 
     if (!consumerKey || !consumerSecret || !shortcode || !passkey) {
-      return res.status(500).json({ error: "M-Pesa NOT configured. Missing: " + (!consumerKey ? "KEY " : "") + (!consumerSecret ? "SECRET " : "") + (!shortcode ? "SHORTCODE " : "") + (!passkey ? "PASSKEY" : "") });
+      return res.status(500).json({ error: "M-Pesa NOT configured in Vercel" });
     }
 
+    // PRODUCTION because your keys are Production. Change to sandbox only if you switch keys.
+    const BASE = "https://api.safaricom.co.ke";
+
     const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
-    const tokenRes = await fetch("https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", {
+    const tokenRes = await fetch(BASE + "/oauth/v1/generate?grant_type=client_credentials", {
       headers: { Authorization: `Basic ${authStr}` }
     });
     const tokenData = await safeJson(tokenRes, "Safaricom OAuth");
@@ -44,7 +47,7 @@ module.exports = async (req, res) => {
     const timestamp = now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
     const password = Buffer.from(shortcode + passkey + timestamp).toString("base64");
 
-    const stkRes = await fetch("https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest", {
+    const stkRes = await fetch(BASE + "/mpesa/stkpush/v1/processrequest", {
       method: "POST",
       headers: { Authorization: `Bearer ${tokenData.access_token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
