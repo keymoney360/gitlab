@@ -1,7 +1,6 @@
 // api/admin/withdraw/[id]/approve.js - LOCKED ADMIN ONLY
-const { connect, User, auth } = require("../../../_db");
+const { connect, User, auth } = require("../../../../_db");
 const mongoose = require("mongoose");
-
 const ADMIN_EMAILS = [
   "kimaniian githua@gmail.com",
   "kimaniangithua@gmail.com"
