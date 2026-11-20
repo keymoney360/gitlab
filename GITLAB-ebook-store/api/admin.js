@@ -1,8 +1,10 @@
-// api/admin.js - ALL ADMIN IN 1 FUNCTION (to stay under Vercel 12 limit)
+// api/admin.js - ALL ADMIN IN 1 FUNCTION + PASSCODE LOCK
 const { connect, User, auth } = require("./_db");
 const mongoose = require("mongoose");
 
-const ADMIN_EMAILS = ["kimaniian githua@gmail.com", "kimaniangithua@gmail.com"];
+const ADMIN_EMAILS = ["kimaniangithua@gmail.com"];
+const ADMIN_PASSCODE = "GITTS-Admin-2026";
+
 const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, "");
 const isAdmin = (email) => ADMIN_EMAILS.map(norm).includes(norm(email));
 
@@ -15,8 +17,16 @@ module.exports = async (req, res) => {
   if (d.id) { try { u = await User.findById(d.id); } catch {} }
   if (!u && d.email) u = await User.findOne({ email: d.email });
   if (!u) return res.status(404).json({ error: "User not found" });
+
+  // LOCK 1: Must be admin email
   if (!isAdmin(u.email)) {
-    return res.status(403).json({ error: "Not admin. YOUR EMAIL IN DB IS: [" + u.email + "]" });
+    return res.status(403).json({ error: "Not admin" });
+  }
+
+  // LOCK 2: Must have correct passcode
+  const passcode = req.headers["x-admin-passcode"] || req.query.passcode || "";
+  if (passcode !== ADMIN_PASSCODE) {
+    return res.status(403).json({ error: "Wrong admin passcode" });
   }
 
   const db = mongoose.connection.db;
@@ -42,7 +52,7 @@ module.exports = async (req, res) => {
     return res.json({ totalMembers, paidMembers, members: cleanMembers, withdrawals: cleanWd });
   }
 
-  // APPROVE WITHDRAWAL: ?action=approve&id=xxx
+  // APPROVE WITHDRAWAL
   if (action === "approve") {
     const id = req.query.id;
     const result = await db.collection("withdrawals").updateOne(
@@ -53,7 +63,7 @@ module.exports = async (req, res) => {
     return res.json({ success: true });
   }
 
-  // REJECT + REFUND: ?action=reject&id=xxx
+  // REJECT + REFUND
   if (action === "reject") {
     const id = req.query.id;
     const wd = await db.collection("withdrawals").findOne({ _id: new mongoose.Types.ObjectId(id) });
@@ -65,7 +75,7 @@ module.exports = async (req, res) => {
     return res.json({ success: true });
   }
 
-  // ADD BOOK: ?action=addBook (POST)
+  // ADD BOOK
   if (action === "addBook") {
     const { title, price, category, cover, description, downloadUrl } = req.body || {};
     if (!title || !price) return res.status(400).json({ error: "Enter title and price" });
