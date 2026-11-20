@@ -1,3 +1,4 @@
+// api/login.js - FIXED: Token now has id + email so me.js can find you
 const { connect, User, bcrypt, jwt } = require("./_db");
 
 module.exports = async (req, res) => {
@@ -13,11 +14,27 @@ module.exports = async (req, res) => {
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(400).json({ error: "Wrong password. Try Forgot Password." });
 
-    const token = jwt.sign({ email: user.email }, process.env.JWT_SECRET || "gitlab-secret", { expiresIn: "7d" });
+    // FIXED: Include id + userId + email - me.js needs id
+    const token = jwt.sign(
+      { id: user._id, userId: user._id, email: user.email },
+      process.env.JWT_SECRET || "gitlab-secret",
+      { expiresIn: "7d" }
+    );
+
     return res.json({
       success: true,
       token,
-      user: { name: user.name, email: user.email, referralCode: user.referralCode, isPaid: user.isPaid, balance: user.balance }
+      user: {
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        referralCode: user.referralCode || user.refCode || null,
+        isPaid: user.isPaid,
+        membershipPaid: user.membershipPaid,
+        membershipStatus: user.membershipStatus,
+        balance: user.balance,
+        totalEarned: user.totalEarned
+      }
     });
   } catch (e) {
     console.error(e);
