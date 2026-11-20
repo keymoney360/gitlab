@@ -35,11 +35,12 @@ module.exports = async (req, res) => {
     const user = await User.create({
       name, email: lowerEmail, phone, password: hashed,
       referralCode: myCode,
+      refCode: myCode,
       referredBy: referralCode ? referralCode.toUpperCase() : null,
       isPaid: false, balance: 0, totalEarned: 0
     });
-
-    if (referralCode) {
+    
+   if (referralCode) {
       const referrer = await User.findOne({ referralCode: referralCode.toUpperCase() });
       if (referrer) {
         await Referral.create({ referrerEmail: referrer.email, name: user.name, email: user.email, level: 1, commission: 50, status: "PENDING" });
