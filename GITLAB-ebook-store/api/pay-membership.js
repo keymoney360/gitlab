@@ -21,11 +21,12 @@ module.exports = async (req, res) => {
     if (cleanPhone.startsWith("0")) cleanPhone = "254" + cleanPhone.slice(1);
     if (cleanPhone.startsWith("+")) cleanPhone = cleanPhone.slice(1);
 
-    const consumerKey = process.env.MPESA_CONSUMER_KEY;
-    const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
-    const shortcode = process.env.MPESA_SHORTCODE || process.env.MPESA_PAYBILL;
-    const passkey = process.env.MPESA_PASSKEY;
-
+    const clean = (v) => String(v || "").trim().replace(/^["']|["']$/g, "").trim();
+const consumerKey = clean(process.env.MPESA_CONSUMER_KEY);
+const consumerSecret = clean(process.env.MPESA_CONSUMER_SECRET);
+const shortcode = clean(process.env.MPESA_SHORTCODE || process.env.MPESA_PAYBILL);
+const passkey = clean(process.env.MPESA_PASSKEY);
+    
     if (!consumerKey || !consumerSecret || !shortcode || !passkey) {
       return res.status(500).json({ error: "M-Pesa NOT configured in Vercel. Missing: " + (!consumerKey ? "KEY " : "") + (!consumerSecret ? "SECRET " : "") + (!shortcode ? "SHORTCODE " : "") + (!passkey ? "PASSKEY" : "") });
     }
