@@ -13,6 +13,10 @@ async function connect() {
     }).then(m => m);
   }
   cached.conn = await cached.promise;
+  // AUTO-FIX: Drop bad unique index that blocks every new user
+  try { await mongoose.connection.collection("users").dropIndex("referralCode_1"); } catch {}
+  try { await mongoose.connection.collection("users").dropIndex("phone_1"); } catch {}
+  try { await mongoose.connection.collection("users").dropIndex("refCode_1"); } catch {}
   return cached.conn;
 }
 
@@ -21,7 +25,8 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, unique: true },
   phone: String,
   password: String,
-  referralCode: { type: String, unique: true },
+  referralCode: { type: String },
+  refCode: String,
   referredBy: String,
   isPaid: { type: Boolean, default: false },
   balance: { type: Number, default: 0 },
