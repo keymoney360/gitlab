@@ -1,17 +1,25 @@
-// api/admin/withdraw/[id]/reject.js - refunds balance
+// api/admin/withdraw/[id]/reject.js - LOCKED ADMIN ONLY + REFUND
 const { connect, User, auth } = require("../../../_db");
 const mongoose = require("mongoose");
-const ADMIN_EMAILS = ["kimaniiangithua@gmail.com"];
+
+const ADMIN_EMAILS = [
+  "kimaniian githua@gmail.com",
+  "kimaniangithua@gmail.com"
+];
+const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, "");
+const isAdmin = (email) => ADMIN_EMAILS.map(norm).includes(norm(email));
 
 module.exports = async (req, res) => {
   res.setHeader("Content-Type", "application/json");
+
   const d = auth(req);
   if (!d) return res.status(401).json({ error: "Login again" });
   await connect();
+
   let u = null;
   if (d.id) { try { u = await User.findById(d.id); } catch {} }
   if (!u && d.email) u = await User.findOne({ email: d.email });
-  if (!u || !ADMIN_EMAILS.includes(u.email)) return res.status(403).json({ error: "Not admin" });
+  if (!u || !isAdmin(u.email)) return res.status(403).json({ error: "Not admin" });
 
   const id = req.query.id;
   const db = mongoose.connection.db;
@@ -20,7 +28,6 @@ module.exports = async (req, res) => {
   if (wd.status !== "PENDING") return res.status(400).json({ error: "Already " + wd.status });
 
   await db.collection("withdrawals").updateOne({ _id: wd._id }, { $set: { status: "REJECTED" } });
-  // Refund: give money back to user
   const userEmail = wd.userEmail || wd.email;
   if (userEmail) {
     await User.updateOne({ email: userEmail }, { $inc: { balance: wd.amount } });
