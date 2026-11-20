@@ -8,6 +8,8 @@ module.exports = async (req, res) => {
   try {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     await connect();
+    // FIX 1: Drop old phone unique index - fixes E11000 forever
+    try { await User.collection.dropIndex("phone_1"); } catch {}
     const { name, email, phone, password, referralCode } = req.body || {};
     if (!name || !email || !phone || !password) return res.status(400).json({ error: "Fill all fields" });
     if (password.length < 6) return res.status(400).json({ error: "Password min 6" });
@@ -52,6 +54,10 @@ module.exports = async (req, res) => {
     return res.json({ success: true, token, user: { name: user.name, email: user.email, referralCode: myCode } });
   } catch (e) {
     console.error(e);
+    // FIX 2: Friendly message instead of ugly E11000
+    if (e.code === 11000) {
+      return res.status(400).json({ error: "This phone/email already exists. Please Login instead." });
+    }
     return res.status(500).json({ error: "Server error: " + e.message });
   }
 };
