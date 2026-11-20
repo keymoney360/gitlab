@@ -1,12 +1,16 @@
-// api/mpesa-callback.js - FIXED: Actually activates membership on ResultCode 0
+// api/mpesa-callback.js - FINAL: Activates membership on ResultCode 0
+// Matches GITLAB schema: isPaid + membershipPaid
 const { connect, User } = require("./_db");
 
 module.exports = async (req, res) => {
-  if (req.method !== "POST") return res.status(405).json({ ResultCode: 1, ResultDesc: "Method not allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ ResultCode: 1, ResultDesc: "Method not allowed" });
+  }
+
   try {
     const callback = req.body?.Body?.stkCallback;
     if (!callback) {
-      console.warn("Unrecognized M-Pesa callback payload");
+      console.warn("Unrecognized M-Pesa callback payload", JSON.stringify(req.body));
       return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 
@@ -16,12 +20,13 @@ module.exports = async (req, res) => {
 
     console.log("M-Pesa callback", JSON.stringify({ checkoutRequestID, resultCode, resultDesc }));
 
-    // Payment failed / cancelled - do nothing, just ack
+    // Payment failed / cancelled / wrong PIN - do NOT activate
     if (resultCode !== 0) {
+      console.log("CALLBACK: Payment NOT successful, skipping activation. Code:", resultCode);
       return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 
-    // Extract metadata: Amount, MpesaReceiptNumber, PhoneNumber
+    // Extract metadata from Safaricom
     const items = callback.CallbackMetadata?.Item || [];
     const get = (name) => {
       const it = items.find((i) => i.Name === name);
@@ -31,19 +36,15 @@ module.exports = async (req, res) => {
     const amount = Number(get("Amount"));
     const receipt = get("MpesaReceiptNumber");
     const phone254 = String(get("PhoneNumber") || ""); // e.g. 254704577216
-    const phone0 = phone254.startsWith("254") ? "0" + phone254.slice(3) : phone254;
+    const phone0 = phone254.startsWith("254") ? "0" + phone254.slice(3) : phone254; // e.g. 0704577216
 
     console.log("CALLBACK SUCCESS:", { amount, receipt, phone254, phone0, checkoutRequestID });
 
     await connect();
 
-    // Find user by phone - try both formats: 254... and 07...
+    // Find user by phone - try both formats
     const user = await User.findOne({
-      $or: [
-        { phone: phone254 }, { phone: phone0 },
-        { phoneNumber: phone254 }, { phoneNumber: phone0 },
-        { mobile: phone254 }, { mobile: phone0 },
-      ]
+      $or: [{ phone: phone254 }, { phone: phone0 }]
     });
 
     if (!user) {
@@ -51,25 +52,31 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted - user not found" });
     }
 
-    // KSh 300 = Membership, KSh 150 / 200 = Book
+    // KSh 300 = Membership
     if (amount === 300) {
       const now = new Date();
       const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // +30 days
-      user.isMember = true;
+
+      // YOUR REAL FIELDS from _db.js - set BOTH
+      user.isPaid = true;
+      user.membershipPaid = true;
       user.membershipStatus = "active";
       user.membershipPaidAt = now;
       user.membershipExpiresAt = expires;
       user.lastMpesaReceipt = receipt;
       user.lastCheckoutRequestID = checkoutRequestID;
+
       await user.save();
-      console.log("CALLBACK: ACTIVATED membership for", user._id, user.phone, "receipt", receipt);
+      console.log("CALLBACK: ACTIVATED membership for", user.email, user.phone, "receipt", receipt);
     } else {
-      // Book purchase - add to library / purchases
-      user.purchasedBooks = user.purchasedBooks || [];
-      if (!user.purchasedBooks.includes(amount)) user.purchasedBooks.push(amount);
+      // Book purchase - 150 = forex-journal, 200 = forex-discipline
+      const bookName = amount === 150 ? "forex-journal" : amount === 200 ? "forex-discipline" : `book-${amount}`;
+      if (!user.purchasedBooks) user.purchasedBooks = [];
+      if (!user.purchasedBooks.includes(bookName)) user.purchasedBooks.push(bookName);
       user.lastMpesaReceipt = receipt;
+      user.lastCheckoutRequestID = checkoutRequestID;
       await user.save();
-      console.log("CALLBACK: Book purchase recorded for", user._id, "amount", amount);
+      console.log("CALLBACK: Book purchase recorded for", user.email, bookName, "amount", amount);
     }
 
     return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
