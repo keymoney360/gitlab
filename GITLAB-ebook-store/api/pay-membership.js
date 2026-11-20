@@ -1,5 +1,16 @@
-// api/pay-membership.js - FIXED: EAT timestamp + correct callback + Sandbox/Prod switch
+// api/pay-membership.js - FIXED: Store in BusinessShortCode, Till in PartyB (same as books)
 const { connect, User, jwt } = require("./_db");
+
+function getTimestamp() {
+  const eat = new Date(Date.now() + 3 * 60 * 60 * 1000);
+  const Y = eat.getUTCFullYear();
+  const M = String(eat.getUTCMonth() + 1).padStart(2, "0");
+  const D = String(eat.getUTCDate()).padStart(2, "0");
+  const h = String(eat.getUTCHours()).padStart(2, "0");
+  const m = String(eat.getUTCMinutes()).padStart(2, "0");
+  const s = String(eat.getUTCSeconds()).padStart(2, "0");
+  return `${Y}${M}${D}${h}${m}${s}`;
+}
 
 module.exports = async (req, res) => {
   res.setHeader("Content-Type", "application/json");
@@ -22,47 +33,41 @@ module.exports = async (req, res) => {
     if (phone.startsWith("0")) phone = "254" + phone.slice(1);
     if (phone.length !== 12) return res.status(400).json({ error: "Enter valid phone e.g. 0712345678" });
 
-    const { MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_SHORTCODE, MPESA_PASSKEY, MPESA_CALLBACK_URL, MPESA_ENV } = process.env;
-    if (!MPESA_CONSUMER_KEY || !MPESA_CONSUMER_SECRET) return res.status(500).json({ error: "Vercel missing MPESA_CONSUMER_KEY / MPESA_CONSUMER_SECRET" });
-    if (!MPESA_SHORTCODE || !MPESA_PASSKEY) return res.status(500).json({ error: "Vercel missing MPESA_SHORTCODE / MPESA_PASSKEY" });
-
-    // FIX 2: Default to mpesa-callback, NOT callback
+    // SAME AS BOOKS - Store + Till, NOT one number
+    const storeNumber = String(process.env.MPESA_SHORTCODE || "1275105").trim();
+    const tillNumber = String(process.env.MPESA_TILL_NUMBER || "1745713").trim();
+    const { MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_PASSKEY, MPESA_CALLBACK_URL } = process.env;
+    if (!MPESA_CONSUMER_KEY || !MPESA_CONSUMER_SECRET || !MPESA_PASSKEY) {
+      return res.status(500).json({ error: "Vercel missing MPESA_CONSUMER_KEY / MPESA_CONSUMER_SECRET / MPESA_PASSKEY" });
+    }
     const callback = MPESA_CALLBACK_URL || "https://gitlab-sage.vercel.app/api/mpesa-callback";
 
-    // FIX 3: Sandbox vs Production URL
-    // Set MPESA_ENV=sandbox in Vercel if you are using Sandbox keys, else production
-    const isSandbox = (MPESA_ENV || "production").toLowerCase() === "sandbox";
-    const baseUrl = isSandbox ? "https://sandbox.safaricom.co.ke" : "https://api.safaricom.co.ke";
-    console.log("MPESA ENV:", isSandbox ? "sandbox" : "production", "Shortcode:", MPESA_SHORTCODE);
-
-    // 1. Daraja token
+    // 1. Token - PRODUCTION
     const authStr = Buffer.from(`${MPESA_CONSUMER_KEY}:${MPESA_CONSUMER_SECRET}`).toString("base64");
-    const tokenRes = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+    const tokenRes = await fetch("https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", {
       headers: { Authorization: "Basic " + authStr }
     });
     const tokenData = await tokenRes.json().catch(() => ({}));
     if (!tokenRes.ok || !tokenData.access_token) {
       console.log("DARAJA TOKEN FAIL:", tokenData);
-      return res.status(500).json({ error: "Daraja login failed. Keys and URL don't match. If keys are Sandbox, set MPESA_ENV=sandbox in Vercel. Details: " + JSON.stringify(tokenData) });
+      return res.status(500).json({ error: "Daraja login failed. Details: " + JSON.stringify(tokenData) });
     }
-    const accessToken = tokenData.access_token;
 
-    // FIX 1: EAT timestamp (Kenya time, UTC+3) - THIS FIXES 2002
-    const now = new Date(Date.now() + 3 * 60 * 60 * 1000);
-    const timestamp = now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
-    const password = Buffer.from(`${MPESA_SHORTCODE}${MPESA_PASSKEY}${timestamp}`).toString("base64");
+    // 2. STK - Store in BusinessShortCode, Till in PartyB
+    const timestamp = getTimestamp();
+    const password = Buffer.from(`${storeNumber}${MPESA_PASSKEY}${timestamp}`).toString("base64");
 
-    const stkRes = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
+    const stkRes = await fetch("https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + accessToken },
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + tokenData.access_token },
       body: JSON.stringify({
-        BusinessShortCode: MPESA_SHORTCODE,
+        BusinessShortCode: storeNumber, // 1275105 - STORE
         Password: password,
         Timestamp: timestamp,
         TransactionType: "CustomerBuyGoodsOnline",
         Amount: 300,
         PartyA: phone,
-        PartyB: MPESA_SHORTCODE,
+        PartyB: tillNumber, // 1745713 - TILL
         PhoneNumber: phone,
         CallBackURL: callback,
         AccountReference: "GITLAB300",
@@ -78,7 +83,7 @@ module.exports = async (req, res) => {
 
     return res.json({ success: true, CheckoutRequestID: stkData.CheckoutRequestID, message: "STK sent to " + phone });
   } catch (e) {
-    console.log("PAY-MEMBERSHIP CRASH:", e.message, e.stack);
+    console.log("PAY-MEMBERSHIP CRASH:", e.message);
     return res.status(500).json({ error: "Server crash: " + e.message });
   }
 };
