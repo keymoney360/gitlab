@@ -1,7 +1,7 @@
 // api/admin/withdraw/[id]/approve.js
 const { connect, User, auth } = require("../../../_db");
 const mongoose = require("mongoose");
-const ADMIN_EMAILS = ["kimaniian githua@gmail.com"];
+const ADMIN_EMAILS = ["kimaniiangithua@gmail.com"];
 
 module.exports = async (req, res) => {
   res.setHeader("Content-Type", "application/json");
