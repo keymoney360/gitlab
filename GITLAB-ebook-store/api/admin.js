@@ -24,8 +24,9 @@ module.exports = async (req, res) => {
   }
 
   // LOCK 2: Must have correct passcode
-  const passcode = req.headers["x-admin-passcode"] || req.query.passcode || "";
-  if (passcode !== ADMIN_PASSCODE) {
+    const passcode = String(req.headers["x-admin-passcode"] || req.query.passcode || req.body?.passcode || "").trim();
+  
+ if (passcode !== ADMIN_PASSCODE) {
     return res.status(403).json({ error: "Wrong admin passcode" });
   }
 
