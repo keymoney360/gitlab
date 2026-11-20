@@ -1,6 +1,14 @@
 // GITLAB - app.js - Join / Login / Pay 300 / Books
 document.getElementById("year").textContent = new Date().getFullYear();
 
+// --- Safe JSON parser - must be at top, used by all functions ---
+async function safeJson(res) {
+  const text = await res.text();
+  if (!text) throw new Error("Server returned empty response (Vercel crash / timeout) - Check Vercel > Logs");
+  try { return JSON.parse(text); }
+  catch { throw new Error("Server returned non-JSON (" + res.status + "): " + text.slice(0, 200)); }
+}
+
 // --- Auto-fill referral code from URL ?ref=XXXX ---
 const urlParams = new URLSearchParams(window.location.search);
 const refFromUrl = urlParams.get("ref");
@@ -61,7 +69,6 @@ async function doRegister() {
   if (!name || !email || !phone || !password) return showAlert("Fill all fields.");
   if (password.length < 6) return showAlert("Password must be at least 6 characters.");
   if (!/^[0-9]{10}$/.test(phone.replace(/\s/g, "")) && !/^254[0-9]{9}$/.test(phone)) {
-    // allow 071... or 25471...
     if (phone.length < 10) return showAlert("Enter valid phone e.g. 0712345678");
   }
 
@@ -72,12 +79,10 @@ async function doRegister() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, email, phone, password, referralCode: referralCode || undefined })
     });
-    const data = await safejson(res);
+    const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "Registration failed");
 
-    // Save phone for pay step
     document.getElementById("payPhone").value = phone;
-    // Save temp token if returned
     if (data.token) localStorage.setItem("gitts_token", data.token);
     switchAuth("pay");
     showAlert("Account created! Now pay KSh 300 to activate.");
@@ -85,13 +90,6 @@ async function doRegister() {
 }
 
 // --- PAY 300 ---
-async function safeJson(res) {
-  const text = await res.text();
-  if (!text) throw new Error("Server returned empty response (Vercel crash / timeout) - Check Vercel > Logs > pay-membership");
-  try { return JSON.parse(text); }
-  catch { throw new Error("Server returned non-JSON (" + res.status + "): " + text.slice(0, 200)); }
-}
-
 async function doPay300() {
   let phone = document.getElementById("payPhone").value.trim();
   if (!phone) return showAlert("Enter M-Pesa number.");
@@ -131,7 +129,7 @@ async function doLogin() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password })
     });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "Login failed");
     localStorage.setItem("gitts_token", data.token);
     localStorage.setItem("gitts_user", JSON.stringify(data.user));
@@ -150,7 +148,7 @@ async function doForgot() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email })
     });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "Failed");
     showAlert("Code sent! Check email. For testing, code is: " + (data.code || "check email"));
   } catch (e) { showAlert(e.message); }
@@ -167,7 +165,7 @@ async function doReset() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, code, newPassword })
     });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "Reset failed");
     showAlert("Password reset! Login now.");
     setTimeout(() => switchAuth("login"), 1000);
@@ -216,7 +214,7 @@ document.getElementById("payButton")?.addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phone, amount: p.price, product: currentProduct })
     });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "STK failed");
     status.textContent = "STK sent! Enter PIN on your phone to complete.";
     status.className = "checkout-status success";
@@ -229,7 +227,6 @@ document.getElementById("payButton")?.addEventListener("click", async () => {
 // --- If already logged in, show Dashboard link in header ---
 const existingToken = localStorage.getItem("gitts_token");
 if (existingToken) {
-  // keep user on homepage but change Join button to Dashboard
   const joinBtns = document.querySelectorAll(".join-btn");
   joinBtns.forEach(b => {
     b.textContent = "My Dashboard →";
