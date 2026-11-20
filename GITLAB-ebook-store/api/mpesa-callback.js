@@ -1,88 +1,88 @@
-// api/mpesa-callback.js - FINAL: Activates membership on ResultCode 0
-// Matches GITLAB schema: isPaid + membershipPaid
 const { connect, User } = require("./_db");
 
 module.exports = async (req, res) => {
-  if (req.method !== "POST") {
-    return res.status(405).json({ ResultCode: 1, ResultDesc: "Method not allowed" });
-  }
-
   try {
-    const callback = req.body?.Body?.stkCallback;
-    if (!callback) {
-      console.warn("Unrecognized M-Pesa callback payload", JSON.stringify(req.body));
-      return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
-    }
-
-    const checkoutRequestID = callback.CheckoutRequestID;
-    const resultCode = callback.ResultCode;
-    const resultDesc = callback.ResultDesc;
-
-    console.log("M-Pesa callback", JSON.stringify({ checkoutRequestID, resultCode, resultDesc }));
-
-    // Payment failed / cancelled / wrong PIN - do NOT activate
-    if (resultCode !== 0) {
-      console.log("CALLBACK: Payment NOT successful, skipping activation. Code:", resultCode);
-      return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
-    }
-
-    // Extract metadata from Safaricom
-    const items = callback.CallbackMetadata?.Item || [];
-    const get = (name) => {
-      const it = items.find((i) => i.Name === name);
-      return it ? it.Value : null;
-    };
-
-    const amount = Number(get("Amount"));
-    const receipt = get("MpesaReceiptNumber");
-    const phone254 = String(get("PhoneNumber") || ""); // e.g. 254704577216
-    const phone0 = phone254.startsWith("254") ? "0" + phone254.slice(3) : phone254; // e.g. 0704577216
-
-    console.log("CALLBACK SUCCESS:", { amount, receipt, phone254, phone0, checkoutRequestID });
-
     await connect();
+    const stk = req.body?.Body?.stkCallback;
+    if (!stk) return res.json({ ResultCode: 0, ResultDesc: "OK" });
 
-    // Find user by phone - try both formats
-    const user = await User.findOne({
-      $or: [{ phone: phone254 }, { phone: phone0 }]
-    });
+    const code = stk.ResultCode;
+    const meta = stk.CallbackMetadata?.Item || [];
+    const get = (n) => { const f = meta.find(x => x.Name === n); return f ? f.Value : null; };
+    const receipt = get("MpesaReceiptNumber");
+    const phone = String(get("PhoneNumber") || "");
+    const amount = get("Amount");
 
+    if (code !== 0) return res.json({ ResultCode: 0, ResultDesc: "OK" });
+
+    // Find payer by phone - try both formats
+    let user = await User.findOne({ phone });
     if (!user) {
-      console.log("CALLBACK: No user found for phone", phone254, phone0);
-      return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted - user not found" });
+      const local = "0" + phone.slice(3);
+      user = await User.findOne({ phone: local });
+    }
+    if (!user) return res.json({ ResultCode: 0, ResultDesc: "OK" });
+
+    // If already paid, don't pay commission twice
+    if (user.isPaid && user.membershipPaid) {
+      return res.json({ ResultCode: 0, ResultDesc: "OK" });
     }
 
-    // KSh 300 = Membership
-    if (amount === 300) {
-      const now = new Date();
-      const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // +30 days
+    user.isPaid = true;
+    user.membershipPaid = true;
+    user.membershipStatus = "active";
+    user.lastMpesaReceipt = receipt;
+    user.membershipExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    await user.save();
 
-      // YOUR REAL FIELDS from _db.js - set BOTH
-      user.isPaid = true;
-      user.membershipPaid = true;
-      user.membershipStatus = "active";
-      user.membershipPaidAt = now;
-      user.membershipExpiresAt = expires;
-      user.lastMpesaReceipt = receipt;
-      user.lastCheckoutRequestID = checkoutRequestID;
+    // --- PAY REFERRALS ---
+    if (user.referredBy) {
+      // Level 1 = 50
+      const l1 = await User.findOne({ email: user.referredBy });
+      if (l1) {
+        l1.balance = (l1.balance || 0) + 50;
+        l1.totalEarned = (l1.totalEarned || 0) + 50;
+        await l1.save();
 
-      await user.save();
-      console.log("CALLBACK: ACTIVATED membership for", user.email, user.phone, "receipt", receipt);
-    } else {
-      // Book purchase - 150 = forex-journal, 200 = forex-discipline
-      const bookName = amount === 150 ? "forex-journal" : amount === 200 ? "forex-discipline" : `book-${amount}`;
-      if (!user.purchasedBooks) user.purchasedBooks = [];
-      if (!user.purchasedBooks.includes(bookName)) user.purchasedBooks.push(bookName);
-      user.lastMpesaReceipt = receipt;
-      user.lastCheckoutRequestID = checkoutRequestID;
-      await user.save();
-      console.log("CALLBACK: Book purchase recorded for", user.email, bookName, "amount", amount);
+        // Create referral record so dashboard shows it
+        const db = require("mongoose").connection.db;
+        await db.collection("referrals").insertOne({
+          referrerEmail: l1.email,
+          referrerCode: l1.referralCode,
+          referredEmail: user.email,
+          referredName: user.name,
+          level: 1,
+          status: "APPROVED",
+          commission: 50,
+          createdAt: new Date()
+        });
+
+        // Level 2 = 30 - the person who referred YOUR referrer
+        if (l1.referredBy) {
+          const l2 = await User.findOne({ email: l1.referredBy });
+          if (l2) {
+            l2.balance = (l2.balance || 0) + 30;
+            l2.totalEarned = (l2.totalEarned || 0) + 30;
+            await l2.save();
+
+            await db.collection("referrals").insertOne({
+              referrerEmail: l2.email,
+              referrerCode: l2.referralCode,
+              referredEmail: user.email,
+              referredName: user.name,
+              level: 2,
+              status: "APPROVED",
+              commission: 30,
+              createdAt: new Date()
+            });
+          }
+        }
+      }
     }
 
-    return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
-  } catch (error) {
-    console.error("Callback processing error", error);
-    // Always return 200 to Safaricom, else it will retry forever
-    return res.status(200).json({ ResultCode: 0, ResultDesc: "Received" });
+    return res.json({ ResultCode: 0, ResultDesc: "OK" });
+  } catch (e) {
+    console.error("callback error", e);
+    return res.json({ ResultCode: 0, ResultDesc: "OK" });
   }
 };
