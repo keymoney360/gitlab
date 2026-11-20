@@ -5,17 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#08111f" />
   <title>GITLAB — Digital Library</title>
-  <meta name="description" content="Practical digital books and forex journals. Buy securely with M-Pesa." />
+  <meta name="description" content="Practical digital books and forex journals. Join for KSh 300, earn 50+30. Buy securely with M-Pesa." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css" />
+  <style>
+    .auth-btns{display:flex;gap:10px;align-items:center}
+    .join-btn{background:#B8F53D;color:#000;padding:10px 16px;border-radius:999px;font-weight:800;font-size:14px;border:none;cursor:pointer}
+    .login-btn{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.25);padding:10px 16px;border-radius:999px;font-weight:700;font-size:14px;cursor:pointer}
+    .auth-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999;place-items:center;padding:16px}
+    .auth-modal.open{display:grid}
+    .auth-box{background:#fff;color:#111;width:100%;max-width:420px;border-radius:18px;padding:22px}
+    .auth-box input{width:100%;padding:13px;border:1px solid #ddd;border-radius:10px;margin:7px 0;font-size:15px}
+    .auth-box button.main{width:100%;padding:13px;border:none;border-radius:10px;background:#B8F53D;font-weight:900;font-size:16px;margin-top:10px;cursor:pointer}
+    .auth-link{text-align:center;margin-top:12px;font-size:14px;color:#2563eb;cursor:pointer}
+    .auth-alert{background:#FEF3C7;padding:10px;border-radius:10px;font-size:13px;margin:8px 0;display:none}
+    .member-banner{background:#B8F53D;color:#000;padding:14px 20px;border-radius:14px;margin:20px auto;max-width:1100px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+  </style>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#"><span class="brand-mark">G</span><span>GITLAB<span class="brand-dot">.</span></span></a>
-    <nav><a href="#books">Explore books</a><a href="#how">How it works</a></nav>
-    <a class="top-cta" href="#books">Browse library <span>↗</span></a>
+    <nav><a href="#books">Explore books</a><a href="#how">How it works</a><a href="#earn">Earn 50+30</a></nav>
+    <div class="auth-btns">
+      <button class="login-btn" onclick="openAuth('login')">Login</button>
+      <button class="join-btn" onclick="openAuth('register')">Join - KSh 300</button>
+    </div>
   </header>
 
   <main>
@@ -23,9 +39,9 @@
       <div class="hero-copy">
         <div class="eyebrow"><span class="live-dot"></span> YOUR NEXT READ STARTS HERE</div>
         <h1>Knowledge that<br><em>moves you forward.</em></h1>
-        <p class="hero-text">Discover practical digital books, trading journals and resources. Choose what you need and pay securely with M-Pesa.</p>
-        <div class="hero-actions"><a class="primary-btn" href="#books">Explore the library <span>→</span></a><span class="secure-note">⌁ Secure M-Pesa checkout</span></div>
-        <div class="hero-stats"><div><strong>Instant</strong><small>Digital checkout</small></div><div><strong>Simple</strong><small>No account needed</small></div><div><strong>M-Pesa</strong><small>STK Push payment</small></div></div>
+        <p class="hero-text">Discover practical digital books, trading journals and resources. Join for KSh 300, earn KSh 50 + 30 on referrals, and pay securely with M-Pesa.</p>
+        <div class="hero-actions"><a class="primary-btn" href="#" onclick="openAuth('register');return false">Join Now - KSh 300 <span>→</span></a><span class="secure-note">⌁ Secure M-Pesa checkout</span></div>
+        <div class="hero-stats"><div><strong>Instant</strong><small>Digital checkout</small></div><div><strong>50 + 30</strong><small>Referral earnings</small></div><div><strong>M-Pesa</strong><small>STK Push payment</small></div></div>
       </div>
       <div class="hero-art" aria-label="Decorative book illustration">
         <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
@@ -35,10 +51,18 @@
       </div>
     </section>
 
-    <section class="trust-strip"><span>BUILT FOR CURIOUS MINDS</span><i></i><span>PAY WITH M-PESA</span><i></i><span>NO REGISTRATION REQUIRED</span></section>
+    <section class="trust-strip"><span>BUILT FOR CURIOUS MINDS</span><i></i><span>PAY WITH M-PESA</span><i></i><span>JOIN FOR KSH 300 • EARN 50+30</span></section>
+
+    <section id="earn" style="max-width:1100px;margin:20px auto;padding:0 20px">
+      <div class="member-banner">
+        <div><b>How 50 + 30 Works:</b> Invite a friend → They pay 300 → You get KSh 50. If they invite someone, you get KSh 30.</div>
+        <button onclick="openAuth('register')" style="background:#000;color:#fff;border:none;padding:10px 18px;border-radius:999px;font-weight:800;cursor:pointer">Get My Link →</button>
+      </div>
+    </section>
 
     <section class="catalog section" id="books">
       <div class="section-heading"><div><div class="eyebrow">THE DIGITAL SHELF</div><h2>Explore the library<span>.</span></h2><p>Start with our forex journal collection, then check back for more titles.</p></div><div class="catalog-count"><b>02</b><span>FEATURED TITLES</span></div></div>
+      <div id="dynamicBooks"></div>
       <div class="product-grid">
         <article class="product-card">
           <div class="cover cover-one"><div class="cover-top">GITLAB JOURNALS <span>01 / FX</span></div><div class="cover-symbol">↗</div><div class="cover-title">THE FOREX<br><b>TRADING</b><br>JOURNAL</div><div class="cover-bottom">PLAN · EXECUTE · REVIEW</div></div>
@@ -52,11 +76,12 @@
       <div class="coming-soon"><span class="spark">✳</span><div><b>More knowledge is on the way.</b><p>New e-books and practical resources will be added to the shelf.</p></div></div>
     </section>
 
-    <section class="how section" id="how"><div class="eyebrow">A FEW SIMPLE STEPS</div><h2>Read more. Stress less<span>.</span></h2><div class="steps"><div class="step"><span>01</span><h3>Choose a book</h3><p>Browse the digital shelf and select the resource you want.</p></div><div class="step"><span>02</span><h3>Pay with M-Pesa</h3><p>Enter your Safaricom number and approve the STK prompt on your phone.</p></div><div class="step"><span>03</span><h3>Get your copy</h3><p>Once payment is confirmed, your digital download can be delivered.</p></div></div></section>
+    <section class="how section" id="how"><div class="eyebrow">A FEW SIMPLE STEPS</div><h2>Read more. Earn more<span>.</span></h2><div class="steps"><div class="step"><span>01</span><h3>Join for KSh 300</h3><p>Create account and pay 300 via M-Pesa to activate membership.</p></div><div class="step"><span>02</span><h3>Share your link</h3><p>Invite friends with your referral code from your dashboard.</p></div><div class="step"><span>03</span><h3>Earn 50 + 30</h3><p>Get KSh 50 for direct, KSh 30 for second level. Withdraw from KSh 200.</p></div></div></section>
   </main>
 
   <footer><a class="brand" href="#"><span class="brand-mark">G</span><span>GITLAB<span class="brand-dot">.</span></span></a><span>© <span id="year"></span> GITLAB Digital Library</span><span>Knowledge, made accessible.</span></footer>
 
+  <!-- OLD CHECKOUT MODAL - KEEP -->
   <div class="modal-backdrop" id="checkoutModal" aria-hidden="true">
     <section class="checkout-modal" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle">
       <button class="close-modal" id="closeModal" aria-label="Close">×</button>
@@ -70,6 +95,47 @@
       <div class="modal-foot">🔒 Your payment is processed securely through Safaricom Daraja.</div>
     </section>
   </div>
+
+  <!-- NEW AUTH MODAL -->
+  <div class="auth-modal" id="authModal">
+    <div class="auth-box">
+      <div style="display:flex;justify-content:space-between"><h2 id="authTitle">Join GITLAB</h2><span onclick="closeAuth()" style="cursor:pointer;font-size:26px">×</span></div>
+      <p id="authSub" style="color:#666;font-size:14px;margin:6px 0">Create account, then pay KSh 300 via M-Pesa.</p>
+      <div class="auth-alert" id="authAlert"></div>
+      <div id="regForm">
+        <input id="regName" placeholder="Full Name">
+        <input id="regEmail" placeholder="Email" type="email">
+        <input id="regPhone" placeholder="Phone e.g. 0712345678">
+        <input id="regPass" placeholder="Password (min 6)" type="password">
+        <input id="regRef" placeholder="Referral Code (optional)">
+        <button class="main" onclick="doRegister()">Create Account → Pay KSh 300</button>
+        <div class="auth-link" onclick="switchAuth('login')">Already have account? Login</div>
+      </div>
+      <div id="logForm" style="display:none">
+        <input id="logEmail" placeholder="Email" type="email">
+        <input id="logPass" placeholder="Password" type="password">
+        <button class="main" onclick="doLogin()">Login</button>
+        <div class="auth-link" onclick="switchAuth('forgot')">Forgot password?</div>
+        <div class="auth-link" onclick="switchAuth('register')">No account? Join - KSh 300</div>
+      </div>
+      <div id="forgotForm" style="display:none">
+        <input id="forgotEmail" placeholder="Email">
+        <button class="main" onclick="doForgot()">Send Reset Code</button>
+        <input id="forgotCode" placeholder="6-digit code">
+        <input id="forgotNewPass" placeholder="New Password" type="password">
+        <button class="main" onclick="doReset()" style="background:#111;color:#fff">Reset Password</button>
+        <div class="auth-link" onclick="switchAuth('login')">Back to Login</div>
+      </div>
+      <div id="payForm" style="display:none">
+        <p style="font-size:14px">Account created! Pay <b>KSh 300</b> to activate.</p>
+        <input id="payPhone" placeholder="M-Pesa Number e.g. 0712345678">
+        <button class="main" onclick="doPay300()">Pay KSh 300 via M-Pesa</button>
+        <p style="font-size:12px;color:#666;text-align:center;margin-top:10px">Check your phone for M-Pesa prompt, enter PIN, then Login.</p>
+        <div class="auth-link" onclick="switchAuth('login')">I have paid → Login</div>
+      </div>
+    </div>
+  </div>
+
   <script src="/app.js"></script>
 </body>
 </html>
