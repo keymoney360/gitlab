@@ -40,14 +40,14 @@
         <div class="eyebrow"><span class="live-dot"></span> YOUR NEXT READ STARTS HERE</div>
         <h1>Knowledge that<br><em>moves you forward.</em></h1>
         <p class="hero-text">Discover practical digital books, trading journals and resources. Join for KSh 300, earn KSh 50 + 30 on referrals, and pay securely with M-Pesa.</p>
-        <div class="hero-actions"><a class="primary-btn" href="#" onclick="openAuth('register');return false">Join Now - KSh 300 <span>→</span></a><span class="secure-note">⌁ Secure M-Pesa checkout</span></div>
+        <div class="hero-actions"><a class="primary-btn" href="#" onclick="openAuth('register');return false">Join Now - KSh 300 <span>→</span></a><span class="secure-note">Secure M-Pesa checkout</span></div>
         <div class="hero-stats"><div><strong>Instant</strong><small>Digital checkout</small></div><div><strong>50 + 30</strong><small>Referral earnings</small></div><div><strong>M-Pesa</strong><small>STK Push payment</small></div></div>
       </div>
       <div class="hero-art" aria-label="Decorative book illustration">
         <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
         <div class="book book-back"><div class="book-lines"></div></div>
         <div class="book book-front"><div class="book-tag">GITLAB<br>READING SERIES</div><div class="book-title">LEARN.<br>BUILD.<br><span>GROW.</span></div><div class="book-bottom">DIGITAL KNOWLEDGE / 001</div></div>
-        <div class="floating-chip chip-top">✦ Curated resources</div><div class="floating-chip chip-bottom">↗ Learn at your pace</div>
+        <div class="floating-chip chip-top">Curated resources</div><div class="floating-chip chip-bottom">Learn at your pace</div>
       </div>
     </section>
 
@@ -92,7 +92,7 @@
       <small class="input-help">Enter the 9 digits after 0, for example 712345678.</small>
       <button class="pay-btn" id="payButton">Send M-Pesa prompt <span>→</span></button>
       <p class="checkout-status" id="checkoutStatus" role="status"></p>
-      <div class="modal-foot">🔒 Your payment is processed securely through Safaricom Daraja.</div>
+      <div class="modal-foot">Your payment is processed securely through Safaricom Daraja.</div>
     </section>
   </div>
 
@@ -103,17 +103,18 @@
       <p id="authSub" style="color:#666;font-size:14px;margin:6px 0">Create account, then pay KSh 300 via M-Pesa.</p>
       <div class="auth-alert" id="authAlert"></div>
       <div id="regForm">
-        <input id="regName" placeholder="Full Name">
-        <input id="regEmail" placeholder="Email" type="email">
-        <input id="regPhone" placeholder="Phone e.g. 0712345678">
-        <input id="regPass" placeholder="Password (min 6)" type="password">
-        <input id="regRef" placeholder="Referral Code (optional)">
+        <div id="inviteBanner" style="display:none;background:#e8f5e9;border:1px solid #B8F53D;padding:10px;border-radius:10px;font-size:13px;font-weight:700;margin-bottom:8px;"></div>
+        <input id="regName" placeholder="Full Name" autocomplete="name">
+        <input id="regEmail" placeholder="Email" type="email" autocomplete="email">
+        <input id="regPhone" placeholder="Phone e.g. 0712345678" autocomplete="tel">
+        <input id="regPass" placeholder="Password (min 6)" type="password" autocomplete="new-password">
+        <input id="regRef" placeholder="Referral Code (optional)" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()" autocomplete="off">
         <button class="main" onclick="doRegister()">Create Account → Pay KSh 300</button>
         <div class="auth-link" onclick="switchAuth('login')">Already have account? Login</div>
       </div>
       <div id="logForm" style="display:none">
-        <input id="logEmail" placeholder="Email" type="email">
-        <input id="logPass" placeholder="Password" type="password">
+        <input id="logEmail" placeholder="Email" type="email" autocomplete="email">
+        <input id="logPass" placeholder="Password" type="password" autocomplete="current-password">
         <button class="main" onclick="doLogin()">Login</button>
         <div class="auth-link" onclick="switchAuth('forgot')">Forgot password?</div>
         <div class="auth-link" onclick="switchAuth('register')">No account? Join - KSh 300</div>
@@ -130,8 +131,9 @@
         <p style="font-size:14px">Account created! Pay <b>KSh 300</b> to activate.</p>
         <input id="payPhone" placeholder="M-Pesa Number e.g. 0712345678">
         <button class="main" onclick="doPay300()">Pay KSh 300 via M-Pesa</button>
-        <p style="font-size:12px;color:#666;text-align:center;margin-top:10px">Check your phone for M-Pesa prompt, enter PIN, then Login.</p>
-        <div class="auth-link" onclick="switchAuth('login')">I have paid → Login</div>
+        <p style="font-size:12px;color:#666;text-align:center;margin-top:10px">Do NOT close this. After you enter your M-Pesa PIN, this page will wait and auto-confirm your payment, then take you to Dashboard.</p>
+        <p style="font-size:12px;color:#b91c1c;text-align:center">If NO prompt ever comes to your phone, STK never reached Safaricom. Check Daraja Production keys, Shortcode, Passkey, Callback URL in Vercel.</p>
+        <div class="auth-link" onclick="switchAuth('login')">I already paid, check my payment → Login</div>
       </div>
     </div>
   </div>
