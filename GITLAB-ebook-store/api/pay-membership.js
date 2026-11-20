@@ -1,76 +1,57 @@
-const { connect, auth } = require("./_db");
-
-const clean = (v) => String(v || "").trim().replace(/^["']|["']$/g, "").trim();
-
-async function safeJson(res, label) {
-  const text = await res.text();
-  if (!text) throw new Error(label + " returned EMPTY response (status " + res.status + ") - Check MPESA keys / environment");
-  try { return JSON.parse(text); }
-  catch { throw new Error(label + " returned non-JSON (status " + res.status + "): " + text.slice(0, 300)); }
-}
+const { connect, User } = require("./_db");
+const jwt = require("jsonwebtoken");
+const axios = require("axios");
 
 module.exports = async (req, res) => {
   res.setHeader("Content-Type", "application/json");
   try {
-    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const auth = req.headers.authorization || "";
+    const token = auth.replace("Bearer ", "");
+    if (!token) return res.status(401).json({ error: "Login again" });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "gitlab-secret");
     await connect();
-    const me = auth(req);
-    if (!me) return res.status(401).json({ error: "Login required" });
-    const { phone } = req.body || {};
+    let { phone } = req.body;
     if (!phone) return res.status(400).json({ error: "Phone required" });
+    phone = String(phone).replace(/\s/g, "");
+    if (phone.startsWith("0")) phone = "254" + phone.slice(1);
+    if (phone.startsWith("+")) phone = phone.slice(1);
 
-    let cleanPhone = String(phone).replace(/\s/g, "");
-    if (cleanPhone.startsWith("0")) cleanPhone = "254" + cleanPhone.slice(1);
-    if (cleanPhone.startsWith("+")) cleanPhone = cleanPhone.slice(1);
-
-    const consumerKey = clean(process.env.MPESA_CONSUMER_KEY);
-    const consumerSecret = clean(process.env.MPESA_CONSUMER_SECRET);
-    const shortcode = clean(process.env.MPESA_SHORTCODE || process.env.MPESA_PAYBILL);
-    const passkey = clean(process.env.MPESA_PASSKEY);
-
-    if (!consumerKey || !consumerSecret || !shortcode || !passkey) {
-      return res.status(500).json({ error: "M-Pesa NOT configured in Vercel" });
+    // Check envs
+    const { MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_SHORTCODE, MPESA_PASSKEY, MPESA_CALLBACK_URL } = process.env;
+    if (!MPESA_CONSUMER_KEY || !MPESA_SHORTCODE || !MPESA_PASSKEY) {
+      return res.status(500).json({ error: "M-Pesa env vars missing in Vercel. Check Settings > Environment Variables" });
     }
 
-    // PRODUCTION because your keys are Production. Change to sandbox only if you switch keys.
-    const BASE = "https://api.safaricom.co.ke";
+    // 1. Get Daraja token
+    const authStr = Buffer.from(`${MPESA_CONSUMER_KEY}:${MPESA_CONSUMER_SECRET}`).toString("base64");
+    const tokenRes = await axios.get("https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", { headers: { Authorization: `Basic ${authStr}` } });
+    const accessToken = tokenRes.data.access_token;
 
-    const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
-    const tokenRes = await fetch(BASE + "/oauth/v1/generate?grant_type=client_credentials", {
-      headers: { Authorization: `Basic ${authStr}` }
-    });
-    const tokenData = await safeJson(tokenRes, "Safaricom OAuth");
-    if (!tokenData.access_token) return res.status(500).json({ error: "M-Pesa auth failed: " + JSON.stringify(tokenData) });
+    // 2. STK Push
+    const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+    const password = Buffer.from(`${MPESA_SHORTCODE}${MPESA_PASSKEY}${timestamp}`).toString("base64");
 
-    const now = new Date();
-    const pad = (n) => String(n).padStart(2, "0");
-    const timestamp = now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
-    const password = Buffer.from(shortcode + passkey + timestamp).toString("base64");
+    const stkRes = await axios.post("https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest", {
+      BusinessShortCode: MPESA_SHORTCODE,
+      Password: password,
+      Timestamp: timestamp,
+      TransactionType: "CustomerPayBillOnline",
+      Amount: 300,
+      PartyA: phone,
+      PartyB: MPESA_SHORTCODE,
+      PhoneNumber: phone,
+      CallBackURL: MPESA_CALLBACK_URL || "https://gitlab-sage.vercel.app/api/callback",
+      AccountReference: "GITLAB300",
+      TransactionDesc: "GITLAB Membership"
+    }, { headers: { Authorization: `Bearer ${accessToken}` } });
 
-    const stkRes = await fetch(BASE + "/mpesa/stkpush/v1/processrequest", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${tokenData.access_token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        BusinessShortCode: shortcode,
-        Password: password,
-        Timestamp: timestamp,
-        TransactionType: "CustomerPayBillOnline",
-        Amount: 300,
-        PartyA: cleanPhone,
-        PartyB: shortcode,
-        PhoneNumber: cleanPhone,
-        CallBackURL: "https://gitlab-sage.vercel.app/api/callback",
-        AccountReference: me.email,
-        TransactionDesc: "GITLAB Membership 300"
-      })
-    });
-    const stkData = await safeJson(stkRes, "Safaricom STK");
-    if (stkData.ResponseCode !== "0") {
-      return res.status(400).json({ error: stkData.ResponseDescription || "STK failed: " + JSON.stringify(stkData) });
+    console.log("STK RESPONSE:", JSON.stringify(stkRes.data));
+    if (stkRes.data.ResponseCode !== "0") {
+      return res.status(400).json({ error: "Daraja rejected: " + (stkRes.data.ResponseDescription || JSON.stringify(stkRes.data)) });
     }
-    return res.json({ success: true, checkoutId: stkData.CheckoutRequestID });
+    return res.json({ success: true, CheckoutRequestID: stkRes.data.CheckoutRequestID, message: "STK sent to " + phone });
   } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: "Server error: " + e.message });
+    console.log("PAY ERROR:", e.response?.data || e.message);
+    return res.status(500).json({ error: "Daraja error: " + JSON.stringify(e.response?.data || e.message) });
   }
 };
