@@ -1,4 +1,4 @@
-// api/pay-membership.js - NO axios, uses native fetch
+// api/pay-membership.js - FIXED: EAT timestamp + correct callback + Sandbox/Prod switch
 const { connect, User, jwt } = require("./_db");
 
 module.exports = async (req, res) => {
@@ -22,29 +22,37 @@ module.exports = async (req, res) => {
     if (phone.startsWith("0")) phone = "254" + phone.slice(1);
     if (phone.length !== 12) return res.status(400).json({ error: "Enter valid phone e.g. 0712345678" });
 
-    const { MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_SHORTCODE, MPESA_PASSKEY, MPESA_CALLBACK_URL } = process.env;
-    if (!MPESA_CONSUMER_KEY || !MPESA_CONSUMER_SECRET) return res.status(500).json({ error: "Vercel missing MPESA_CONSUMER_KEY / MPESA_CONSUMER_SECRET. Go to Vercel > Settings > Environment Variables" });
+    const { MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_SHORTCODE, MPESA_PASSKEY, MPESA_CALLBACK_URL, MPESA_ENV } = process.env;
+    if (!MPESA_CONSUMER_KEY || !MPESA_CONSUMER_SECRET) return res.status(500).json({ error: "Vercel missing MPESA_CONSUMER_KEY / MPESA_CONSUMER_SECRET" });
     if (!MPESA_SHORTCODE || !MPESA_PASSKEY) return res.status(500).json({ error: "Vercel missing MPESA_SHORTCODE / MPESA_PASSKEY" });
 
-    const callback = MPESA_CALLBACK_URL || "https://gitlab-sage.vercel.app/api/callback";
+    // FIX 2: Default to mpesa-callback, NOT callback
+    const callback = MPESA_CALLBACK_URL || "https://gitlab-sage.vercel.app/api/mpesa-callback";
+
+    // FIX 3: Sandbox vs Production URL
+    // Set MPESA_ENV=sandbox in Vercel if you are using Sandbox keys, else production
+    const isSandbox = (MPESA_ENV || "production").toLowerCase() === "sandbox";
+    const baseUrl = isSandbox ? "https://sandbox.safaricom.co.ke" : "https://api.safaricom.co.ke";
+    console.log("MPESA ENV:", isSandbox ? "sandbox" : "production", "Shortcode:", MPESA_SHORTCODE);
 
     // 1. Daraja token
     const authStr = Buffer.from(`${MPESA_CONSUMER_KEY}:${MPESA_CONSUMER_SECRET}`).toString("base64");
-    const tokenRes = await fetch("https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", {
+    const tokenRes = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
       headers: { Authorization: "Basic " + authStr }
     });
     const tokenData = await tokenRes.json().catch(() => ({}));
     if (!tokenRes.ok || !tokenData.access_token) {
       console.log("DARAJA TOKEN FAIL:", tokenData);
-      return res.status(500).json({ error: "Daraja login failed. Wrong Consumer Key/Secret or you are using SANDBOX keys on PRODUCTION URL. Check Daraja Portal. Details: " + JSON.stringify(tokenData) });
+      return res.status(500).json({ error: "Daraja login failed. Keys and URL don't match. If keys are Sandbox, set MPESA_ENV=sandbox in Vercel. Details: " + JSON.stringify(tokenData) });
     }
     const accessToken = tokenData.access_token;
 
-    // 2. STK Push
-    const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+    // FIX 1: EAT timestamp (Kenya time, UTC+3) - THIS FIXES 2002
+    const now = new Date(Date.now() + 3 * 60 * 60 * 1000);
+    const timestamp = now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
     const password = Buffer.from(`${MPESA_SHORTCODE}${MPESA_PASSKEY}${timestamp}`).toString("base64");
 
-    const stkRes = await fetch("https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest", {
+    const stkRes = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + accessToken },
       body: JSON.stringify({
