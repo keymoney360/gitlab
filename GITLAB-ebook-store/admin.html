@@ -29,6 +29,13 @@
     .form-grid input,.form-grid select{width:100%;padding:12px;border:1px solid #dce2e9;border-radius:7px;font:14px "DM Sans"}
     .form-grid label{font-size:11px;font-weight:700;display:block;margin-bottom:6px}
     @media(max-width:800px){.dash-grid{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}}
+    /* PASSCODE SCREEN */
+    #passcodeScreen{max-width:400px;margin:80px auto;padding:35px 25px;background:white;border:1px solid #e8ebf0;border-radius:14px;text-align:center;box-shadow:0 10px 30px #17263a10}
+    #passcodeScreen h2{font:800 22px Manrope;margin:8px 0 6px}
+    #passcodeScreen p{font-size:13px;color:#788394;margin:0 0 18px}
+    #passcodeScreen input{width:100%;padding:13px;border:1px solid #dce2e9;border-radius:8px;font-size:16px;text-align:center;letter-spacing:1px;margin-bottom:12px}
+    #passcodeScreen button{width:100%;padding:13px;border:0;border-radius:8px;background:#08111f;color:white;font-weight:700;font-size:14px;cursor:pointer}
+    #passcodeError{color:#bd3939;font-size:12px;min-height:16px;margin-top:10px}
   </style>
 </head>
 <body>
@@ -38,7 +45,20 @@
     <a class="top-cta" href="/#books">View Site <span>↗</span></a>
   </header>
 
-  <main class="dash-wrap">
+  <!-- PASSCODE SCREEN - shows first, dashboard hidden -->
+  <div id="passcodeScreen">
+    <div style="font-size:32px">🔒</div>
+    <h2>Admin Access</h2>
+    <p>Enter your admin passcode to continue.</p>
+    <input id="passcodeInput" type="password" placeholder="Enter passcode" autocomplete="off" />
+    <button id="unlockBtn">Unlock Admin →</button>
+    <div id="passcodeError"></div>
+    <p style="font-size:11px;color:#9aa3af;margin-top:14px">This is separate from your login password.</p>
+  </div>
+
+  <div id="checking" style="display:none;text-align:center;padding:80px 20px;color:#788394;font:600 14px Manrope">Verifying admin...</div>
+
+  <main class="dash-wrap" id="adminContent" style="display:none">
     <div class="eyebrow" style="color:#77934e">ADMIN DASHBOARD</div>
     <h2 style="font:800 32px Manrope;margin:10px 0 4px">Hello, Admin<span style="color:#7eae43">.</span></h2>
     <p style="color:#788394;font-size:13px;margin:0">All members, books and withdrawals in one place.</p>
@@ -80,12 +100,33 @@
 const token = localStorage.getItem("gitts_token");
 if (!token) window.location.href = "/";
 let allMembers = [];
+let adminPasscode = sessionStorage.getItem("gitts_admin_passcode") || "";
+
+// If we already unlocked this session, skip passcode screen
+if (adminPasscode) {
+  document.getElementById("passcodeScreen").style.display = "none";
+  document.getElementById("checking").style.display = "block";
+  loadAdmin();
+}
+
+document.getElementById("unlockBtn").addEventListener("click", () => {
+  const val = document.getElementById("passcodeInput").value.trim();
+  if (!val) { document.getElementById("passcodeError").textContent = "Enter passcode."; return; }
+  adminPasscode = val;
+  sessionStorage.setItem("gitts_admin_passcode", val);
+  document.getElementById("passcodeScreen").style.display = "none";
+  document.getElementById("checking").style.display = "block";
+  loadAdmin();
+});
+document.getElementById("passcodeInput").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("unlockBtn").click(); });
 
 async function loadAdmin() {
   try {
-    const res = await fetch("/api/admin?action=overview", { headers: { "Authorization": "Bearer " + token } });
+    const res = await fetch("/api/admin?action=overview", { headers: { "Authorization": "Bearer " + token, "x-admin-passcode": adminPasscode } });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Not admin");
+    document.getElementById("checking").style.display = "none";
+    document.getElementById("adminContent").style.display = "block";
     document.getElementById("totalMembers").textContent = data.totalMembers || 0;
     document.getElementById("paidMembers").textContent = data.paidMembers || 0;
     document.getElementById("regMoney").textContent = "KSh " + ((data.paidMembers || 0) * 300);
@@ -94,7 +135,12 @@ async function loadAdmin() {
     allMembers = data.members || [];
     renderMembers(allMembers);
   } catch (e) {
-    alert(e.message); window.location.href = "/";
+    sessionStorage.removeItem("gitts_admin_passcode");
+    adminPasscode = "";
+    document.getElementById("checking").style.display = "none";
+    document.getElementById("passcodeScreen").style.display = "block";
+    document.getElementById("passcodeError").textContent = e.message === "Wrong admin passcode" ? "Wrong passcode. Try again." : e.message;
+    document.getElementById("passcodeInput").value = "";
   }
 }
 function renderMembers(list) {
@@ -106,14 +152,14 @@ document.getElementById("searchMember").addEventListener("input", e => {
 });
 async function approveWd(id) {
   if (!confirm("Have you sent the money via M-Pesa to this member? Click OK to mark as PAID.")) return;
-  const res = await fetch("/api/admin?action=approve&id=" + id, { method: "POST", headers: { "Authorization": "Bearer " + token } });
+  const res = await fetch("/api/admin?action=approve&id=" + id, { method: "POST", headers: { "Authorization": "Bearer " + token, "x-admin-passcode": adminPasscode } });
   const data = await res.json();
   if (!res.ok) return alert(data.error || "Failed");
   alert("Marked as PAID!"); loadAdmin();
 }
 async function rejectWd(id) {
   if (!confirm("Reject this withdrawal? Money goes back to their balance.")) return;
-  const res = await fetch("/api/admin?action=reject&id=" + id, { method: "POST", headers: { "Authorization": "Bearer " + token } });
+  const res = await fetch("/api/admin?action=reject&id=" + id, { method: "POST", headers: { "Authorization": "Bearer " + token, "x-admin-passcode": adminPasscode } });
   const data = await res.json();
   if (!res.ok) return alert(data.error || "Failed");
   alert("Rejected."); loadAdmin();
@@ -127,14 +173,13 @@ document.getElementById("addBookBtn").addEventListener("click", async () => {
   const link = document.getElementById("bookLink").value.trim();
   const status = document.getElementById("bookStatus");
   if (!title || !price) { status.textContent = "Enter title and price."; status.className = "checkout-status error"; return; }
-  const res = await fetch("/api/admin?action=addBook", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token }, body: JSON.stringify({ title, price, category, cover, description: desc, downloadUrl: link }) });
+  const res = await fetch("/api/admin?action=addBook", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token, "x-admin-passcode": adminPasscode }, body: JSON.stringify({ title, price, category, cover, description: desc, downloadUrl: link }) });
   const data = await res.json();
   if (!res.ok) { status.textContent = data.error || "Failed"; status.className = "checkout-status error"; return; }
   status.textContent = "Book added! It will show on homepage."; status.className = "checkout-status success";
   document.getElementById("bookTitle").value = ""; document.getElementById("bookPrice").value = "";
 });
-document.getElementById("logoutBtn").addEventListener("click", e => { e.preventDefault(); localStorage.removeItem("gitts_token"); window.location.href = "/"; });
-loadAdmin();
+document.getElementById("logoutBtn").addEventListener("click", e => { e.preventDefault(); localStorage.removeItem("gitts_token"); sessionStorage.removeItem("gitts_admin_passcode"); window.location.href = "/"; });
 </script>
 </body>
 </html>
