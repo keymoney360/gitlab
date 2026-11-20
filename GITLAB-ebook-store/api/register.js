@@ -1,6 +1,4 @@
-const { connect, User } = require("./_db");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+const { connect, User, bcrypt, jwt } = require("./_db");
 
 function makeCode(name) {
   const base = (name || "GIT").replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 3) || "GIT";
@@ -21,32 +19,31 @@ module.exports = async (req, res) => {
     const exists = await User.findOne({ $or: [{ email: cleanEmail }, { phone: cleanPhone }] });
     if (exists) return res.status(400).json({ error: "Email or phone already registered. Login instead." });
 
-    // Generate UNIQUE referral code - retry until unique
+    // Generate UNIQUE referralCode
     let myCode = makeCode(name);
     for (let i = 0; i < 5; i++) {
-      const taken = await User.findOne({ myReferralCode: myCode });
+      const taken = await User.findOne({ referralCode: myCode });
       if (!taken) break;
       myCode = makeCode(name);
     }
 
-    // Who referred me? Find referrer by their code
-    let referredBy = null;
+    // Who referred me?
+    let referredBy = null, referredByCode = null;
     if (referralCode) {
-      const refUser = await User.findOne({ myReferralCode: String(referralCode).trim().toUpperCase() });
-      if (refUser) referredBy = refUser._id;
+      const refUser = await User.findOne({ referralCode: String(referralCode).trim().toUpperCase() });
+      if (refUser) { referredBy = refUser.email; referredByCode = refUser.referralCode; }
     }
 
     const hash = await bcrypt.hash(password, 10);
     const user = await User.create({
       name, email: cleanEmail, phone: cleanPhone,
       password: hash,
-      myReferralCode: myCode,
-      referredBy,
-      isPaid: false, // <-- NOT paid yet
-      membershipPaid: false,
+      referralCode: myCode,
+      referredBy, referredByCode,
+      isPaid: false, membershipPaid: false,
     });
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || "gitlab-secret", { expiresIn: "7d" });
-    return res.json({ success: true, token, user: { name, email: cleanEmail, phone: cleanPhone, myReferralCode: myCode, isPaid: false } });
+    return res.json({ success: true, token, user: { name, email: cleanEmail, phone: cleanPhone, referralCode: myCode, isPaid: false } });
   } catch (e) { return res.status(500).json({ error: e.message }); }
 };
