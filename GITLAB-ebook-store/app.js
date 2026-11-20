@@ -72,7 +72,7 @@ async function doRegister() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, email, phone, password, referralCode: referralCode || undefined })
     });
-    const data = await res.json();
+    const data = await safejson(res);
     if (!res.ok) throw new Error(data.error || "Registration failed");
 
     // Save phone for pay step
