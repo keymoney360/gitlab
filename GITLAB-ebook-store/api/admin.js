@@ -38,10 +38,8 @@ export default async function handler(req, res) {
     const booksCol = db.collection("books");
 
     const users = await usersCol.find({}).toArray();
-    // FIX: Also find user by EMAIL, not just ID
     const u = users.find(x => String(x._id) === String(decoded.id || decoded.userId) || String(x.id) === String(decoded.id || decoded.userId) || norm(x.email) === norm(decoded.email));
 
-    // EMAIL CHECK ONLY - both spellings allowed
     const isAdmin = isAdminEmail(decoded.email) || isAdminEmail(u?.email);
     if (!isAdmin) {
       return res.status(403).json({ error: "Not admin", debug_dbEmail: u?.email || "(not found in Mongo)", debug_tokenEmail: decoded.email || "(no email in token)" });
@@ -51,19 +49,24 @@ export default async function handler(req, res) {
     let withdrawals = await wdCol.find({}).toArray();
     let books = await booksCol.find({}).toArray();
 
-    // Fix _id for frontend
     withdrawals = withdrawals.map(w => ({ ...w, _id: String(w._id), id: String(w._id) }));
     const members = users.map(m => ({ ...m, _id: String(m._id), id: String(m._id) }));
 
     if (action === "approve" || action === "reject") {
       const id = req.query.id;
       const { ObjectId } = await import("mongodb");
-      const w = await wdCol.findOne({ _id: new ObjectId(id) });
+      // Try withdrawals first, then payouts
+      let w = await wdCol.findOne({ _id: new ObjectId(id) });
+      let col = wdCol;
+      if (!w) {
+        w = await db.collection("payouts").findOne({ _id: new ObjectId(id) });
+        col = db.collection("payouts");
+      }
       if (!w) return res.status(404).json({ error: "Not found" });
       if (action === "approve") {
-        await wdCol.updateOne({ _id: new ObjectId(id) }, { $set: { status: "PAID" } });
+        await col.updateOne({ _id: new ObjectId(id) }, { $set: { status: "PAID" } });
       } else {
-        await wdCol.updateOne({ _id: new ObjectId(id) }, { $set: { status: "REJECTED" } });
+        await col.updateOne({ _id: new ObjectId(id) }, { $set: { status: "REJECTED" } });
         await usersCol.updateOne({ _id: w.userId }, { $inc: { balance: w.amount || 0 } });
       }
       return res.json({ ok: true });
@@ -75,9 +78,35 @@ export default async function handler(req, res) {
       return res.json({ ok: true });
     }
 
-    const paidMembers = users.filter(x => x.registrationPaid).length;
-    return res.json({ totalMembers: users.length, paidMembers, members, withdrawals, books });
+    // FIX: YOUR REAL FIELD NAMES from Atlas screenshot
+    const isPaidUser = (x) => x.isPaid === true || x.membershipPaid === true || x.membershipStatus === "active" || x.registrationPaid === true || x.paid === true || x.hasPaid === true;
+    const paidMembers = users.filter(isPaidUser).length;
+
+    const payments = await db.collection("payments").find({}).toArray();
+    const payouts = await db.collection("payouts").find({}).toArray();
+    const commissions = await db.collection("commissions").find({}).toArray();
+    const registrations = await db.collection("registrations").find({}).toArray();
+
+    const allWithdrawals = [...withdrawals, ...payouts.map(p => ({ ...p, _id: String(p._id), id: String(p._id) }))];
+    const pendingWithdrawals = allWithdrawals.filter(w => String(w.status || "").toLowerCase() === "pending" || String(w.status || "").toLowerCase() === "requested").length;
+    const totalRegistrationMoney = paidMembers * 300;
+    const totalPayments = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalCommissions = commissions.reduce((s, c) => s + (c.amount || 0), 0);
+
+    return res.json({
+      totalMembers: users.length,
+      paidMembers,
+      members,
+      withdrawals: allWithdrawals,
+      books,
+      totalRegistrationMoney,
+      pendingWithdrawals,
+      totalPayments,
+      totalPayouts: payouts.length,
+      totalCommissions,
+      totalRegistrations: registrations.length
+    });
   } catch (e) {
     return res.status(500).json({ error: "Server error: " + e.message });
   }
-  }
+}
