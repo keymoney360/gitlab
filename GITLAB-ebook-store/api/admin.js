@@ -1,10 +1,13 @@
-// api/admin.js - MongoDB Atlas + Email Only (NO KV, NO passcode)
+// api/admin.js - MongoDB Atlas + Email + Passcode
 import { MongoClient } from "mongodb";
 
 const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, "").trim();
 // FIX: Accept BOTH spellings - your account has double ii
 const ADMIN_EMAILS = ["kimaniangithua@gmail.com", "kimaniiangithua@gmail.com"];
 const isAdminEmail = (e) => ADMIN_EMAILS.includes(norm(e));
+
+// Passcode - set ADMIN_PASSCODE in Vercel Env Vars for extra safety, fallback is your passcode
+const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || "GITTS-Admin-2026";
 
 let cachedClient = null;
 async function getDb() {
@@ -26,6 +29,12 @@ function decodeJwt(token) {
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/json");
   try {
+    // 1. PASSCODE CHECK - server side
+    const passcode = req.headers["x-admin-passcode"] || "";
+    if (passcode !== ADMIN_PASSCODE) {
+      return res.status(403).json({ error: "Wrong passcode" });
+    }
+
     const token = (req.headers.authorization || "").replace("Bearer ", "");
     if (!token) return res.status(401).json({ error: "No token - please login again" });
 
@@ -40,6 +49,7 @@ export default async function handler(req, res) {
     const users = await usersCol.find({}).toArray();
     const u = users.find(x => String(x._id) === String(decoded.id || decoded.userId) || String(x.id) === String(decoded.id || decoded.userId) || norm(x.email) === norm(decoded.email));
 
+    // 2. EMAIL CHECK
     const isAdmin = isAdminEmail(decoded.email) || isAdminEmail(u?.email);
     if (!isAdmin) {
       return res.status(403).json({ error: "Not admin", debug_dbEmail: u?.email || "(not found in Mongo)", debug_tokenEmail: decoded.email || "(no email in token)" });
@@ -55,7 +65,6 @@ export default async function handler(req, res) {
     if (action === "approve" || action === "reject") {
       const id = req.query.id;
       const { ObjectId } = await import("mongodb");
-      // Try withdrawals first, then payouts
       let w = await wdCol.findOne({ _id: new ObjectId(id) });
       let col = wdCol;
       if (!w) {
@@ -78,7 +87,6 @@ export default async function handler(req, res) {
       return res.json({ ok: true });
     }
 
-    // FIX: YOUR REAL FIELD NAMES from Atlas screenshot
     const isPaidUser = (x) => x.isPaid === true || x.membershipPaid === true || x.membershipStatus === "active" || x.registrationPaid === true || x.paid === true || x.hasPaid === true;
     const paidMembers = users.filter(isPaidUser).length;
 
