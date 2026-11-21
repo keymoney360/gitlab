@@ -9,11 +9,11 @@ const isAdminEmail = (e) => ADMIN_EMAILS.includes(norm(e));
 let cachedClient = null;
 async function getDb() {
   if (!process.env.MONGODB_URI) throw new Error("MONGODB_URI missing in Vercel Env Vars");
-  if (cachedClient) return cachedClient.db(process.env.MONGODB_DB || "gitts");
+  if (cachedClient) return cachedClient.db(process.env.MONGODB_DB || "gits");
   const client = new MongoClient(process.env.MONGODB_URI);
   await client.connect();
   cachedClient = client;
-  return client.db(process.env.MONGODB_DB || "gitts");
+  return client.db(process.env.MONGODB_DB || "gits");
 }
 
 function decodeJwt(token) {
