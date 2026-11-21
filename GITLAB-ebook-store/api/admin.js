@@ -2,7 +2,9 @@
 import { MongoClient } from "mongodb";
 
 const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, "").trim();
-const ADMIN_EMAIL = "kimaniangithua@gmail.com";
+// FIX: Accept BOTH spellings - your account has double ii
+const ADMIN_EMAILS = ["kimaniangithua@gmail.com", "kimaniiangithua@gmail.com"];
+const isAdminEmail = (e) => ADMIN_EMAILS.includes(norm(e));
 
 let cachedClient = null;
 async function getDb() {
@@ -36,10 +38,11 @@ export default async function handler(req, res) {
     const booksCol = db.collection("books");
 
     const users = await usersCol.find({}).toArray();
-    const u = users.find(x => String(x._id) === String(decoded.id || decoded.userId) || String(x.id) === String(decoded.id || decoded.userId));
+    // FIX: Also find user by EMAIL, not just ID
+    const u = users.find(x => String(x._id) === String(decoded.id || decoded.userId) || String(x.id) === String(decoded.id || decoded.userId) || norm(x.email) === norm(decoded.email));
 
-    // EMAIL CHECK ONLY
-    const isAdmin = norm(decoded.email) === norm(ADMIN_EMAIL) || norm(u?.email) === norm(ADMIN_EMAIL);
+    // EMAIL CHECK ONLY - both spellings allowed
+    const isAdmin = isAdminEmail(decoded.email) || isAdminEmail(u?.email);
     if (!isAdmin) {
       return res.status(403).json({ error: "Not admin", debug_dbEmail: u?.email || "(not found in Mongo)", debug_tokenEmail: decoded.email || "(no email in token)" });
     }
@@ -77,4 +80,4 @@ export default async function handler(req, res) {
   } catch (e) {
     return res.status(500).json({ error: "Server error: " + e.message });
   }
-        }
+  }
