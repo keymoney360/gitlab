@@ -1,4 +1,4 @@
-// api/admin.js - NO IMPORTS VERSION - cannot crash on missing packages
+// api/admin.js - EMAIL ONLY, no passcode
 const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, "").trim();
 const ADMIN_EMAIL = "kimaniangithua@gmail.com";
 
@@ -24,33 +24,26 @@ async function kvSet(key, val) {
 function decodeJwt(token) {
   try {
     const part = token.split(".")[1];
-    const json = Buffer.from(part, "base64").toString("utf8");
-    return JSON.parse(json);
+    return JSON.parse(Buffer.from(part, "base64").toString("utf8"));
   } catch { return null; }
 }
 
 export default async function handler(req, res) {
-  // ALWAYS return JSON, even on crash
   res.setHeader("Content-Type", "application/json");
   try {
-    const auth = req.headers.authorization || "";
-    const token = auth.replace("Bearer ", "");
-    if (!token) return res.status(401).json({ error: "No token" });
+    const token = (req.headers.authorization || "").replace("Bearer ", "");
+    if (!token) return res.status(401).json({ error: "No token - please login again" });
 
     const decoded = decodeJwt(token);
-    if (!decoded) return res.status(401).json({ error: "Bad token" });
+    if (!decoded) return res.status(401).json({ error: "Bad token - please login again" });
 
     const users = await kvGet("users");
     const u = users.find(x => String(x.id) === String(decoded.id || decoded.userId));
 
+    // EMAIL CHECK ONLY - like before
     const isAdmin = norm(decoded.email) === norm(ADMIN_EMAIL) || norm(u?.email) === norm(ADMIN_EMAIL);
     if (!isAdmin) {
       return res.status(403).json({ error: "Not admin", debug_dbEmail: u?.email || "(not found)", debug_tokenEmail: decoded.email || "(no email in token)" });
-    }
-
-    const passcode = (req.headers["x-admin-passcode"] || req.query.passcode || req.body?.passcode || "").toString().trim();
-    if (passcode !== "GITTS-Admin-2026") {
-      return res.status(403).json({ error: "Wrong passcode. Try again." });
     }
 
     const action = req.query.action || req.body?.action || "overview";
@@ -84,4 +77,4 @@ export default async function handler(req, res) {
   } catch (e) {
     return res.status(500).json({ error: "Server error: " + e.message });
   }
-}
+  }
