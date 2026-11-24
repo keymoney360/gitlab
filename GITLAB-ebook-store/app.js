@@ -1,4 +1,4 @@
-// GITLAB - app.js - Join / Login / Pay 300 / Books - FIXED - Books from MongoDB
+// GITLAB - app.js - v5 - FIXED - Read product from modal text
 const yearEl = document.getElementById("year");
 if (yearEl) yearEl.textContent = new Date().getFullYear();
 
@@ -8,8 +8,6 @@ async function safeJson(res) {
   try { return JSON.parse(text); }
   catch { throw new Error("Server returned non-JSON (" + res.status + "): " + text.slice(0, 200)); }
 }
-
-// --- Referral auto-fill ---
 function applyReferralFromUrl() {
   const ref = new URLSearchParams(window.location.search).get("ref");
   if (ref) {
@@ -29,36 +27,21 @@ function applyReferralFromUrl() {
   return saved;
 }
 applyReferralFromUrl();
-
-// --- Auth Modal ---
-function openAuth(mode) {
-  document.getElementById("authModal").classList.add("open");
-  switchAuth(mode || "register");
-  setTimeout(applyReferralFromUrl, 100);
-}
+function openAuth(mode) { document.getElementById("authModal").classList.add("open"); switchAuth(mode || "register"); setTimeout(applyReferralFromUrl, 100); }
 function closeAuth() { document.getElementById("authModal").classList.remove("open"); }
 function switchAuth(mode) {
   document.getElementById("regForm").style.display = mode === "register" ? "block" : "none";
   document.getElementById("logForm").style.display = mode === "login" ? "block" : "none";
   document.getElementById("forgotForm").style.display = mode === "forgot" ? "block" : "none";
   document.getElementById("payForm").style.display = mode === "pay" ? "block" : "none";
-  document.getElementById("authTitle").textContent =
-    mode === "login" ? "Welcome Back" :
-    mode === "forgot" ? "Reset Password" :
-    mode === "pay" ? "Pay KSh 300" : "Join GITLAB";
-  document.getElementById("authSub").textContent =
-    mode === "login" ? "Login to access your dashboard." :
-    mode === "forgot" ? "Enter email to get reset code." :
-    mode === "pay" ? "Activate your membership." :
-    "Create account, then pay KSh 300 via M-Pesa.";
+  document.getElementById("authTitle").textContent = mode === "login" ? "Welcome Back" : mode === "forgot" ? "Reset Password" : mode === "pay" ? "Pay KSh 300" : "Join GITLAB";
+  document.getElementById("authSub").textContent = mode === "login" ? "Login to access your dashboard." : mode === "forgot" ? "Enter email to get reset code." : mode === "pay" ? "Activate your membership." : "Create account, then pay KSh 300 via M-Pesa.";
   hideAlert();
   if (mode === "register") setTimeout(applyReferralFromUrl, 100);
 }
 function showAlert(msg) { const a = document.getElementById("authAlert"); a.style.display = "block"; a.textContent = msg; }
 function hideAlert() { const a = document.getElementById("authAlert"); if (a) a.style.display = "none"; }
 document.getElementById("authModal")?.addEventListener("click", (e) => { if (e.target.id === "authModal") closeAuth(); });
-
-// --- REGISTER ---
 async function doRegister() {
   const name = document.getElementById("regName").value.trim();
   const email = document.getElementById("regEmail").value.trim().toLowerCase();
@@ -81,8 +64,6 @@ async function doRegister() {
     showAlert("Account created! Now pay KSh 300 to activate. Do NOT login until you pay.");
   } catch (e) { showAlert(e.message); }
 }
-
-// --- PAY 300 ---
 let payPollTimer = null;
 async function doPay300() {
   let phone = document.getElementById("payPhone").value.trim().replace(/[\s+]/g, "");
@@ -115,13 +96,11 @@ function startPayPolling() {
         setTimeout(() => window.location.href = "/dashboard.html", 1000);
         return;
       }
-      if (tries % 6 === 0) showAlert("Still waiting for M-Pesa confirmation... " + tries * 5 + "s. If you paid, wait. If no prompt came, your Daraja is on SANDBOX or Shortcode is wrong.");
-      if (tries > 24) { clearInterval(payPollTimer); showAlert("Still not confirmed after 2 mins. If you entered PIN and got SMS, click Login to check again. If NO prompt ever came, STK never reached Safaricom - check Vercel Logs."); }
+      if (tries % 6 === 0) showAlert("Still waiting for M-Pesa confirmation... " + tries * 5 + "s.");
+      if (tries > 24) { clearInterval(payPollTimer); showAlert("Still not confirmed after 2 mins. If you entered PIN and got SMS, click Login to check again."); }
     } catch {}
   }, 5000);
 }
-
-// --- LOGIN ---
 async function doLogin() {
   const email = document.getElementById("logEmail").value.trim().toLowerCase();
   const password = document.getElementById("logPass").value;
@@ -142,8 +121,6 @@ async function doLogin() {
     window.location.href = "/dashboard.html";
   } catch (e) { showAlert(e.message); }
 }
-
-// --- FORGOT / RESET ---
 async function doForgot() {
   const email = document.getElementById("forgotEmail").value.trim().toLowerCase();
   if (!email) return showAlert("Enter your email.");
@@ -169,13 +146,10 @@ async function doReset() {
     setTimeout(() => switchAuth("login"), 1000);
   } catch (e) { showAlert(e.message); }
 }
-
-// --- BOOKS - Loads from MongoDB via /api/books into #dynamicBooks ---
 let PRODUCTS = {};
 let ALL_BOOKS = [];
 let currentProduct = null;
-let selectedProduct = null; // FIX: keep the full product object, don't re-lookup later
-
+let selectedProduct = null;
 async function loadProducts() {
   try {
     const res = await fetch("/api/books");
@@ -192,18 +166,11 @@ async function loadProducts() {
     renderBookCards(books);
   } catch (e) {
     console.log("Books API failed, using fallback:", e.message);
-    PRODUCTS = {
-      "forex-journal": { name: "Forex Trading Journal", price: 150 },
-      "forex-discipline": { name: "Forex Discipline Journal", price: 200 }
-    };
+    PRODUCTS = { "forex-journal": { name: "Forex Trading Journal", price: 150 }, "forex-discipline": { name: "Forex Discipline Journal", price: 200 } };
     attachBuyButtons();
   }
 }
-
-function escapeHtml(s) {
-  return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
+function escapeHtml(s) { return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function renderBookCards(books) {
   const container = document.getElementById("dynamicBooks");
   if (!container) { attachBuyButtons(); return; }
@@ -216,27 +183,20 @@ function renderBookCards(books) {
     const coverClass = b.cover || "cover-one";
     const shortTitle = escapeHtml(b.title || "");
     const cat = escapeHtml(b.category || "E-BOOK");
-    return `
-    <article class="product-card" data-book-id="${escapeHtml(id)}">
-      <div class="cover ${escapeHtml(coverClass)}"><div class="cover-top">GITLAB LIBRARY <span>${cat}</span></div><div class="cover-symbol">📚</div><div class="cover-title">${shortTitle}</div><div class="cover-bottom">DIGITAL KNOWLEDGE</div></div>
-      <div class="product-info"><div class="product-meta"><span class="pill">${cat}</span><span class="pages">PDF · DIGITAL</span></div><h3>${shortTitle}</h3><p>${escapeHtml(b.description || "")}</p><div class="product-buy"><strong>KSh ${b.price}</strong><button class="buy-btn" data-product="${escapeHtml(id)}" data-name="${escapeHtml(b.title)}" data-price="${b.price}">Buy now <span>→</span></button></div></div>
-    </article>`;
+    return `<article class="product-card" data-book-id="${escapeHtml(id)}"><div class="cover ${escapeHtml(coverClass)}"><div class="cover-top">GITLAB LIBRARY <span>${cat}</span></div><div class="cover-symbol">📚</div><div class="cover-title">${shortTitle}</div><div class="cover-bottom">DIGITAL KNOWLEDGE</div></div><div class="product-info"><div class="product-meta"><span class="pill">${cat}</span><span class="pages">PDF · DIGITAL</span></div><h3>${shortTitle}</h3><p>${escapeHtml(b.description || "")}</p><div class="product-buy"><strong>KSh ${b.price}</strong><button class="buy-btn" data-product="${escapeHtml(id)}" data-name="${escapeHtml(b.title)}" data-price="${b.price}">Buy now <span>→</span></button></div></div></article>`;
   }).join("") + `</div>`;
   attachBuyButtons();
 }
-
 function attachBuyButtons() {
   document.querySelectorAll(".buy-btn").forEach(btn => {
     if (btn.dataset.bound) return;
     btn.dataset.bound = "1";
     btn.addEventListener("click", () => {
-      // FIX: read name/price straight from the button - never depends on PRODUCTS lookup
       const id = String(btn.dataset.product || "");
       const name = btn.dataset.name || (PRODUCTS[id] && PRODUCTS[id].name) || "Book";
       const price = Number(btn.dataset.price || (PRODUCTS[id] && PRODUCTS[id].price) || 0);
       currentProduct = id;
       selectedProduct = { _id: id, name: name, title: name, price: price };
-      // Also save to modal so Pay can read it even if page re-renders
       const modal = document.getElementById("checkoutModal");
       if (modal) { modal.dataset.product = id; modal.dataset.name = name; modal.dataset.price = String(price); }
       const modalProduct = document.getElementById("modalProduct");
@@ -245,31 +205,30 @@ function attachBuyButtons() {
     });
   });
 }
-
-document.getElementById("closeModal")?.addEventListener("click", () => {
-  document.getElementById("checkoutModal").classList.remove("open");
-  document.getElementById("checkoutModal").setAttribute("aria-hidden", "true");
-});
-document.getElementById("checkoutModal")?.addEventListener("click", (e) => {
-  if (e.target.id === "checkoutModal") {
-    e.target.classList.remove("open");
-    e.target.setAttribute("aria-hidden", "true");
-  }
-});
+document.getElementById("closeModal")?.addEventListener("click", () => { document.getElementById("checkoutModal").classList.remove("open"); document.getElementById("checkoutModal").setAttribute("aria-hidden", "true"); });
+document.getElementById("checkoutModal")?.addEventListener("click", (e) => { if (e.target.id === "checkoutModal") { e.target.classList.remove("open"); e.target.setAttribute("aria-hidden", "true"); } });
 document.getElementById("payButton")?.addEventListener("click", async () => {
   const status = document.getElementById("checkoutStatus");
   let phone = document.getElementById("phone").value.trim().replace(/[\s+]/g, "");
   if (!/^[0-9]{9}$/.test(phone) && !/^254[0-9]{9}$/.test(phone)) { status.textContent = "Enter 9 digits e.g. 712345678"; status.className = "checkout-status error"; return; }
   if (phone.length === 9) phone = "254" + phone;
-  // FIX: use selectedProduct saved on Buy click, fallback to modal dataset
+  // v5 FIX: read product from modal text itself - "Name — KSh 200"
   let p = selectedProduct;
-  if (!p || !p.price) {
-    const modal = document.getElementById("checkoutModal");
-    if (modal && modal.dataset.product) {
-      p = { _id: modal.dataset.product, name: modal.dataset.name, title: modal.dataset.name, price: Number(modal.dataset.price) };
-      selectedProduct = p;
-      currentProduct = p._id;
-    }
+  const modal = document.getElementById("checkoutModal");
+  const modalText = document.getElementById("modalProduct")?.textContent || "";
+  const priceMatch = modalText.match(/KSh\s*(\d+)/);
+  const namePart = modalText.split("—")[0]?.trim();
+  if ((!p || !p.price) && priceMatch) {
+    p = { _id: (modal && modal.dataset.product) || currentProduct || "book", name: namePart || (modal && modal.dataset.name) || "Book", title: namePart || "Book", price: Number(priceMatch[1]) };
+    selectedProduct = p; currentProduct = p._id;
+  }
+  if ((!p || !p.price) && modal && modal.dataset.product) {
+    p = { _id: modal.dataset.product, name: modal.dataset.name, title: modal.dataset.name, price: Number(modal.dataset.price) };
+    selectedProduct = p;
+  }
+  // Last fallback: if we have price from text, use it even if id is missing
+  if ((!p || !p.price) && priceMatch) {
+    p = { _id: "book", name: namePart || "Book", title: namePart || "Book", price: Number(priceMatch[1]) };
   }
   if (!p || !p.price) { status.textContent = "Please select a valid product."; status.className = "checkout-status error"; return; }
   status.textContent = "Sending M-Pesa prompt...";
@@ -282,12 +241,9 @@ document.getElementById("payButton")?.addEventListener("click", async () => {
     status.className = "checkout-status success";
   } catch (e) { status.textContent = e.message; status.className = "checkout-status error"; }
 });
-
-// Load books on page load
 loadProducts();
-
 const existingToken = localStorage.getItem("gitts_token");
 if (existingToken) {
   const joinBtns = document.querySelectorAll(".join-btn");
   joinBtns.forEach(b => { b.textContent = "My Dashboard →"; b.onclick = () => window.location.href = "/dashboard.html"; });
-}
+    }
