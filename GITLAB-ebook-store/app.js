@@ -1,4 +1,4 @@
-// GITLAB - app.js - v6 - FINAL FIXED
+// GITLAB - app.js - v7 - FIXED: sends productId + product + amount
 const yearEl = document.getElementById("year");
 if (yearEl) yearEl.textContent = new Date().getFullYear();
 
@@ -199,7 +199,6 @@ function renderBookCards(books) {
   attachBuyButtons();
 }
 
-// FIXED v6: reads name/price from button OR from card, never 0
 function attachBuyButtons() {
   document.querySelectorAll(".buy-btn").forEach(btn => {
     if (btn.dataset.bound) return;
@@ -249,7 +248,8 @@ document.getElementById("payButton")?.addEventListener("click", async () => {
   status.textContent = "Sending M-Pesa prompt...";
   status.className = "checkout-status";
   try {
-    const res = await fetch("/api/stk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone, amount: p.price, product: p._id, productName: p.name }) });
+    // v7 FIX: send productId + product + price + name - backend accepts all
+    const res = await fetch("/api/stk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone, amount: p.price, price: p.price, product: p._id, productId: p._id, productName: p.name, name: p.name }) });
     const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "STK failed");
     status.textContent = "STK sent! Enter PIN on your phone to complete.";
@@ -263,4 +263,4 @@ const existingToken = localStorage.getItem("gitts_token");
 if (existingToken) {
   const joinBtns = document.querySelectorAll(".join-btn");
   joinBtns.forEach(b => { b.textContent = "My Dashboard →"; b.onclick = () => window.location.href = "/dashboard.html"; });
-      }
+}
