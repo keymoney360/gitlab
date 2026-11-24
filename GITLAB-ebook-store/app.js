@@ -1,4 +1,4 @@
-// GITLAB - app.js - v5 - FIXED - Read product from modal text
+// GITLAB - app.js - v6 - FINAL FIXED
 const yearEl = document.getElementById("year");
 if (yearEl) yearEl.textContent = new Date().getFullYear();
 
@@ -8,6 +8,7 @@ async function safeJson(res) {
   try { return JSON.parse(text); }
   catch { throw new Error("Server returned non-JSON (" + res.status + "): " + text.slice(0, 200)); }
 }
+
 function applyReferralFromUrl() {
   const ref = new URLSearchParams(window.location.search).get("ref");
   if (ref) {
@@ -27,6 +28,7 @@ function applyReferralFromUrl() {
   return saved;
 }
 applyReferralFromUrl();
+
 function openAuth(mode) { document.getElementById("authModal").classList.add("open"); switchAuth(mode || "register"); setTimeout(applyReferralFromUrl, 100); }
 function closeAuth() { document.getElementById("authModal").classList.remove("open"); }
 function switchAuth(mode) {
@@ -42,6 +44,7 @@ function switchAuth(mode) {
 function showAlert(msg) { const a = document.getElementById("authAlert"); a.style.display = "block"; a.textContent = msg; }
 function hideAlert() { const a = document.getElementById("authAlert"); if (a) a.style.display = "none"; }
 document.getElementById("authModal")?.addEventListener("click", (e) => { if (e.target.id === "authModal") closeAuth(); });
+
 async function doRegister() {
   const name = document.getElementById("regName").value.trim();
   const email = document.getElementById("regEmail").value.trim().toLowerCase();
@@ -64,6 +67,7 @@ async function doRegister() {
     showAlert("Account created! Now pay KSh 300 to activate. Do NOT login until you pay.");
   } catch (e) { showAlert(e.message); }
 }
+
 let payPollTimer = null;
 async function doPay300() {
   let phone = document.getElementById("payPhone").value.trim().replace(/[\s+]/g, "");
@@ -101,6 +105,7 @@ function startPayPolling() {
     } catch {}
   }, 5000);
 }
+
 async function doLogin() {
   const email = document.getElementById("logEmail").value.trim().toLowerCase();
   const password = document.getElementById("logPass").value;
@@ -121,6 +126,7 @@ async function doLogin() {
     window.location.href = "/dashboard.html";
   } catch (e) { showAlert(e.message); }
 }
+
 async function doForgot() {
   const email = document.getElementById("forgotEmail").value.trim().toLowerCase();
   if (!email) return showAlert("Enter your email.");
@@ -146,10 +152,13 @@ async function doReset() {
     setTimeout(() => switchAuth("login"), 1000);
   } catch (e) { showAlert(e.message); }
 }
+
+// --- BOOKS ---
 let PRODUCTS = {};
 let ALL_BOOKS = [];
 let currentProduct = null;
 let selectedProduct = null;
+
 async function loadProducts() {
   try {
     const res = await fetch("/api/books");
@@ -170,7 +179,9 @@ async function loadProducts() {
     attachBuyButtons();
   }
 }
+
 function escapeHtml(s) { return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
 function renderBookCards(books) {
   const container = document.getElementById("dynamicBooks");
   if (!container) { attachBuyButtons(); return; }
@@ -187,14 +198,19 @@ function renderBookCards(books) {
   }).join("") + `</div>`;
   attachBuyButtons();
 }
+
+// FIXED v6: reads name/price from button OR from card, never 0
 function attachBuyButtons() {
   document.querySelectorAll(".buy-btn").forEach(btn => {
     if (btn.dataset.bound) return;
     btn.dataset.bound = "1";
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.product || "");
-      const name = btn.dataset.name || (PRODUCTS[id] && PRODUCTS[id].name) || "Book";
-      const price = Number(btn.dataset.price || (PRODUCTS[id] && PRODUCTS[id].price) || 0);
+      const card = btn.closest(".product-card");
+      const titleFromCard = card?.querySelector("h3")?.textContent?.trim();
+      const priceFromCard = card?.querySelector(".product-buy strong")?.textContent?.replace(/[^0-9]/g, "");
+      const name = btn.dataset.name || (PRODUCTS[id] && PRODUCTS[id].name) || titleFromCard || "Book";
+      const price = Number(btn.dataset.price || (PRODUCTS[id] && PRODUCTS[id].price) || priceFromCard || 0);
       currentProduct = id;
       selectedProduct = { _id: id, name: name, title: name, price: price };
       const modal = document.getElementById("checkoutModal");
@@ -205,14 +221,16 @@ function attachBuyButtons() {
     });
   });
 }
+
 document.getElementById("closeModal")?.addEventListener("click", () => { document.getElementById("checkoutModal").classList.remove("open"); document.getElementById("checkoutModal").setAttribute("aria-hidden", "true"); });
 document.getElementById("checkoutModal")?.addEventListener("click", (e) => { if (e.target.id === "checkoutModal") { e.target.classList.remove("open"); e.target.setAttribute("aria-hidden", "true"); } });
+
 document.getElementById("payButton")?.addEventListener("click", async () => {
   const status = document.getElementById("checkoutStatus");
   let phone = document.getElementById("phone").value.trim().replace(/[\s+]/g, "");
   if (!/^[0-9]{9}$/.test(phone) && !/^254[0-9]{9}$/.test(phone)) { status.textContent = "Enter 9 digits e.g. 712345678"; status.className = "checkout-status error"; return; }
   if (phone.length === 9) phone = "254" + phone;
-  // v5 FIX: read product from modal text itself - "Name — KSh 200"
+
   let p = selectedProduct;
   const modal = document.getElementById("checkoutModal");
   const modalText = document.getElementById("modalProduct")?.textContent || "";
@@ -226,11 +244,8 @@ document.getElementById("payButton")?.addEventListener("click", async () => {
     p = { _id: modal.dataset.product, name: modal.dataset.name, title: modal.dataset.name, price: Number(modal.dataset.price) };
     selectedProduct = p;
   }
-  // Last fallback: if we have price from text, use it even if id is missing
-  if ((!p || !p.price) && priceMatch) {
-    p = { _id: "book", name: namePart || "Book", title: namePart || "Book", price: Number(priceMatch[1]) };
-  }
-  if (!p || !p.price) { status.textContent = "Please select a valid product."; status.className = "checkout-status error"; return; }
+  if (!p || !p.price || p.price <= 0) { status.textContent = "Please select a valid product."; status.className = "checkout-status error"; return; }
+
   status.textContent = "Sending M-Pesa prompt...";
   status.className = "checkout-status";
   try {
@@ -241,9 +256,11 @@ document.getElementById("payButton")?.addEventListener("click", async () => {
     status.className = "checkout-status success";
   } catch (e) { status.textContent = e.message; status.className = "checkout-status error"; }
 });
+
 loadProducts();
+
 const existingToken = localStorage.getItem("gitts_token");
 if (existingToken) {
   const joinBtns = document.querySelectorAll(".join-btn");
   joinBtns.forEach(b => { b.textContent = "My Dashboard →"; b.onclick = () => window.location.href = "/dashboard.html"; });
-    }
+      }
