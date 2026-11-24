@@ -1,4 +1,4 @@
-// api/_db.js - FINAL: With membership fields + Purchase so callback can save
+// api/_db.js - FINAL v2: Fixed BookSchema (title + name + downloadLink + downloadUrl all saved)
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -71,13 +71,53 @@ const WithdrawalSchema = new mongoose.Schema({
 });
 const Withdrawal = mongoose.models.Withdrawal || mongoose.model("Withdrawal", WithdrawalSchema);
 
+// FIXED: Book now saves EVERY field the Admin form sends
+// Before, Mongoose deleted title/category/downloadLink because they weren't here
 const BookSchema = new mongoose.Schema({
+  // Title - both names
+  title: String,
   name: String,
+  bookTitle: String,
+  productName: String,
+  // Price - both names
   price: Number,
+  amount: Number,
+  // Status
   status: String,
+  // Admin form fields - these were being DELETED before
+  category: String,
+  coverStyle: String,
+  cover: String,
+  description: String,
+  // Download - all possible names
+  downloadLink: String,
   downloadUrl: String,
+  pdfLink: String,
+  fileUrl: String,
+  url: String,
   userEmail: String,
   createdAt: { type: Date, default: Date.now }
+});
+
+// AUTO-SYNC: whenever a Book is saved, fill both title/name and both download fields
+// So frontend works no matter which one it reads
+BookSchema.pre("save", function(next) {
+  if (this.title && !this.name) this.name = this.title;
+  if (this.name && !this.title) this.title = this.name;
+  if (this.bookTitle && !this.title) this.title = this.bookTitle;
+  if (this.title && !this.bookTitle) this.bookTitle = this.title;
+  if (this.price != null && this.amount == null) this.amount = this.price;
+  if (this.amount != null && this.price == null) this.price = this.amount;
+  const link = this.downloadLink || this.downloadUrl || this.pdfLink || this.fileUrl || this.url;
+  if (link) {
+    this.downloadLink = link;
+    this.downloadUrl = link;
+    this.pdfLink = link;
+    this.fileUrl = link;
+    this.url = link;
+  }
+  if (!this.status) this.status = "active";
+  next();
 });
 const Book = mongoose.models.Book || mongoose.model("Book", BookSchema);
 
