@@ -1,4 +1,4 @@
-// api/stk.js - v10: Hardcoded callback + fixMyBooks built-in (no new file needed)
+// api/stk.js - v11: Hardcoded callback + fixMyBooks with email link (no console needed)
 const PRODUCTS = {
   "forex-journal": { name: "Forex Trading Journal", amount: 150 },
   "forex-discipline": { name: "Forex Discipline Journal", amount: 200 }
@@ -31,16 +31,21 @@ function normalizePhone(phone) {
 module.exports = async (req, res) => {
   // GET = Check payment status + Fix old purchases
   if (req.method === "GET") {
-    // FIX-MY-BOOKS: GET /api/stk?fixMyBooks=1 (with login token)
+    // FIX-MY-BOOKS: GET /api/stk?fixMyBooks=1&email=you@gmail.com
     // Copies all your PAID Purchases into purchasedBooks so Collection shows them
     if (req.query.fixMyBooks === "1") {
       try {
         const { connect, User, Purchase, auth } = require("./_db");
         await connect();
-        const decoded = auth(req);
-        if (!decoded) return res.status(401).json({ error: "Login first" });
-        const user = await User.findOne({ email: decoded.email });
-        if (!user) return res.status(404).json({ error: "User not found" });
+
+        // Try token first, then email in link
+        let user = null;
+        try {
+          const decoded = auth(req);
+          if (decoded && decoded.email) user = await User.findOne({ email: decoded.email });
+        } catch {}
+        if (!user && req.query.email) user = await User.findOne({ email: String(req.query.email).trim().toLowerCase() });
+        if (!user) return res.status(401).json({ error: "User not found - add &email=your@email.com to the link" });
 
         const norm = (p) => {
           let s = String(p || "").replace(/\s+/g, "").replace(/^\+/, "");
@@ -71,7 +76,7 @@ module.exports = async (req, res) => {
           if (!p.userEmail) { p.userEmail = user.email; await p.save(); }
         }
         await user.save();
-        return res.json({ success: true, fixed: paid.length, purchasedBooks: user.purchasedBooks });
+        return res.json({ success: true, fixed: paid.length, email: user.email, purchasedBooks: user.purchasedBooks });
       } catch (e) {
         return res.status(500).json({ error: e.message });
       }
