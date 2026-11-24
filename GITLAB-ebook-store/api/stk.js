@@ -1,4 +1,4 @@
-// api/stk.js - v7 FIXED: accepts productId/product + amount, saves pending Purchase
+// api/stk.js - v8 FIXED: POST = send STK, GET = check payment (no new file needed)
 const PRODUCTS = {
   "forex-journal": { name: "Forex Trading Journal", amount: 150 },
   "forex-discipline": { name: "Forex Discipline Journal", amount: 200 }
@@ -29,6 +29,22 @@ function normalizePhone(phone) {
 }
 
 module.exports = async (req, res) => {
+  // GET = Check payment status - frontend polls this
+  // Frontend will call: GET /api/stk?checkoutRequestID=xxxx
+  if (req.method === "GET") {
+    const id = req.query.checkoutRequestID || req.query.id;
+    if (!id) return res.status(400).json({ paid: false });
+    try {
+      const { connect, Purchase } = require("./_db");
+      await connect();
+      const p = await Purchase.findOne({ checkoutRequestID: id });
+      if (!p) return res.status(200).json({ paid: false, waiting: true });
+      if (p.status === "paid") return res.status(200).json({ paid: true, amount: p.amount, receipt: p.receipt, productName: p.productName, productId: p.productId });
+      if (p.status === "failed") return res.status(200).json({ paid: false, failed: true, reason: p.failReason });
+      return res.status(200).json({ paid: false, waiting: true });
+    } catch (e) { return res.status(200).json({ paid: false, waiting: true }); }
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed." });
   }
@@ -137,7 +153,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    // 4. NEW: Save pending purchase so callback knows WHICH book this was
+    // 4. Save pending purchase so callback knows WHICH book this was
     try {
       const { connect, Purchase } = require("./_db");
       await connect();
