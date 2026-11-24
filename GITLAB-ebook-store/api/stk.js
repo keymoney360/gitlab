@@ -1,4 +1,4 @@
-// api/stk.js - v8 FIXED: POST = send STK, GET = check payment (no new file needed)
+// api/stk.js - v8 FIXED: Hardcoded callback URL - Safaricom will ALWAYS call correct URL
 const PRODUCTS = {
   "forex-journal": { name: "Forex Trading Journal", amount: 150 },
   "forex-discipline": { name: "Forex Discipline Journal", amount: 200 }
@@ -82,9 +82,12 @@ module.exports = async (req, res) => {
   // YOUR NUMBERS - Store 1275105, Till 1745713
   const storeNumber = String(process.env.MPESA_SHORTCODE || "1275105").trim();
   const tillNumber = String(process.env.MPESA_TILL_NUMBER || "1745713").trim();
-  const { MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_PASSKEY, MPESA_CALLBACK_URL } = process.env;
+  const { MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_PASSKEY } = process.env;
 
-  const missing = ["MPESA_CONSUMER_KEY", "MPESA_CONSUMER_SECRET", "MPESA_PASSKEY", "MPESA_CALLBACK_URL"]
+  // FIXED: Hardcoded callback - ignore env var, it was wrong
+  const CALLBACK_URL = "https://gitlab-sage.vercel.app/api/mpesa-callback";
+
+  const missing = ["MPESA_CONSUMER_KEY", "MPESA_CONSUMER_SECRET", "MPESA_PASSKEY"]
     .filter((key) => !process.env[key]);
   if (missing.length) {
     return res.status(500).json({ error: `Missing: ${missing.join(", ")}` });
@@ -116,7 +119,7 @@ module.exports = async (req, res) => {
       PartyA: phone, // 254704577216 - Customer
       PartyB: tillNumber, // 1745713 - TILL
       PhoneNumber: phone,
-      CallBackURL: MPESA_CALLBACK_URL,
+      CallBackURL: CALLBACK_URL, // FIXED: Hardcoded correct URL
       AccountReference: "GITLAB",
       TransactionDesc: product.name.slice(0, 20),
     };
@@ -128,6 +131,7 @@ module.exports = async (req, res) => {
       Amount: product.amount,
       Product: product.name,
       ProductId: productId,
+      CallBackURL: CALLBACK_URL,
     });
 
     // 3. Send STK - PRODUCTION
