@@ -1,4 +1,4 @@
-// GITLAB - app.js - Join / Login / Pay 300 / Books - FIXED
+// GITLAB - app.js - Join / Login / Pay 300 / Books - FIXED - Books from MongoDB
 const yearEl = document.getElementById("year");
 if (yearEl) yearEl.textContent = new Date().getFullYear();
 
@@ -175,22 +175,83 @@ async function doReset() {
   } catch (e) { showAlert(e.message); }
 }
 
-// --- BOOK CHECKOUT - FIXED: was duplicate const PRODUCTS + unclosed brace ---
-const PRODUCTS = {
-  "forex-journal": { name: "Forex Trading Journal", price: 150 },
-  "forex-discipline": { name: "Forex Discipline Journal", price: 200 }
-};
+// --- BOOK CHECKOUT - FIXED: Loads from MongoDB via /api/books ---
+let PRODUCTS = {};
+let ALL_BOOKS = [];
 let currentProduct = null;
-document.querySelectorAll(".buy-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    currentProduct = btn.dataset.product;
-    const p = PRODUCTS[currentProduct];
-    if (!p) return;
-    document.getElementById("modalProduct").textContent = `${p.name} — KSh ${p.price}`;
-    document.getElementById("checkoutModal").classList.add("open");
-    document.getElementById("checkoutModal").setAttribute("aria-hidden", "false");
+
+async function loadProducts() {
+  try {
+    const res = await fetch("/api/books");
+    const data = await safeJson(res);
+    // API may return array directly OR { books: [...] } OR { data: [...] }
+    const books = Array.isArray(data) ? data : (data.books || data.data || []);
+    if (!books.length) throw new Error("No books from API");
+    ALL_BOOKS = books;
+    PRODUCTS = {};
+    books.forEach(b => {
+      const key = b._id || b.id;
+      if (!key) return;
+      PRODUCTS[key] = { name: b.title, price: b.price, _id: key, title: b.title };
+    });
+    renderBookCards(books);
+  } catch (e) {
+    console.log("Books API failed, using fallback:", e.message);
+    // Fallback so old books still work if API is down
+    PRODUCTS = {
+      "forex-journal": { name: "Forex Trading Journal", price: 150 },
+      "forex-discipline": { name: "Forex Discipline Journal", price: 200 }
+    };
+    attachBuyButtons();
+  }
+}
+
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function renderBookCards(books) {
+  const grid = document.querySelector(".books-grid") || document.getElementById("booksGrid") || document.getElementById("books-grid");
+  if (!grid) { attachBuyButtons(); return; }
+  // If your index.html already has static cards, this replaces them with live DB books
+  grid.innerHTML = books.map(b => {
+    const id = b._id || b.id;
+    const cover = b.coverImage || b.cover || b.image || "";
+    const cat = b.category ? `<span class="book-cat">${escapeHtml(b.category)}</span>` : "";
+    return `
+    <div class="book-card" data-book-id="${escapeHtml(id)}">
+      ${cover ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(b.title)}" class="book-cover" onerror="this.style.display='none'">` : `<div class="book-cover-placeholder">📚</div>`}
+      <h3>${escapeHtml(b.title)}</h3>
+      ${cat}
+      <p class="book-desc">${escapeHtml(b.description || "")}</p>
+      <p class="book-price"><b>KSh ${b.price}</b></p>
+      <button class="buy-btn" data-product="${escapeHtml(id)}">Buy Now</button>
+    </div>`;
+  }).join("");
+  attachBuyButtons();
+}
+
+function attachBuyButtons() {
+  document.querySelectorAll(".buy-btn").forEach(btn => {
+    // Prevent duplicate listeners
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", () => {
+      currentProduct = btn.dataset.product;
+      const p = PRODUCTS[currentProduct];
+      if (!p) {
+        const s = document.getElementById("checkoutStatus");
+        if (s) { s.textContent = "Please select a valid product."; s.className = "checkout-status error"; }
+        return;
+      }
+      const modalProduct = document.getElementById("modalProduct");
+      if (modalProduct) modalProduct.textContent = `${p.name} — KSh ${p.price}`;
+      const modal = document.getElementById("checkoutModal");
+      if (modal) { modal.classList.add("open"); modal.setAttribute("aria-hidden", "false"); }
+    });
   });
-});
+}
+
 document.getElementById("closeModal")?.addEventListener("click", () => {
   document.getElementById("checkoutModal").classList.remove("open");
   document.getElementById("checkoutModal").setAttribute("aria-hidden", "true");
@@ -207,17 +268,20 @@ document.getElementById("payButton")?.addEventListener("click", async () => {
   if (!/^[0-9]{9}$/.test(phone) && !/^254[0-9]{9}$/.test(phone)) { status.textContent = "Enter 9 digits e.g. 712345678"; status.className = "checkout-status error"; return; }
   if (phone.length === 9) phone = "254" + phone;
   const p = PRODUCTS[currentProduct];
-  if (!p) { status.textContent = "Select a book first."; return; }
+  if (!p) { status.textContent = "Please select a valid product."; status.className = "checkout-status error"; return; }
   status.textContent = "Sending M-Pesa prompt...";
   status.className = "checkout-status";
   try {
-    const res = await fetch("/api/stk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone, amount: p.price, product: currentProduct }) });
+    const res = await fetch("/api/stk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone, amount: p.price, product: currentProduct, productName: p.name }) });
     const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "STK failed");
     status.textContent = "STK sent! Enter PIN on your phone to complete.";
     status.className = "checkout-status success";
   } catch (e) { status.textContent = e.message; status.className = "checkout-status error"; }
 });
+
+// Load books on page load
+loadProducts();
 
 const existingToken = localStorage.getItem("gitts_token");
 if (existingToken) {
