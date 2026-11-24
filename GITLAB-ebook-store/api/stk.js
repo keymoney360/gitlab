@@ -1,3 +1,4 @@
+// api/stk.js - FIXED: accepts product / productId / productName + amount from frontend
 const PRODUCTS = {
   "forex-journal": { name: "Forex Trading Journal", amount: 150 },
   "forex-discipline": { name: "Forex Discipline Journal", amount: 200 }
@@ -32,10 +33,30 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: "Method not allowed." });
   }
 
-  const { productId, phone: rawPhone } = req.body || {};
-  const product = PRODUCTS[productId];
-  if (!product) {
+  // FIX: accept ALL names frontend might send
+  const body = req.body || {};
+  const productId = body.productId || body.product || body.id || "";
+  const rawPhone = body.phone;
+  const frontendAmount = Number(body.amount || body.price || 0);
+  const frontendName = body.productName || body.name || body.title || "";
+
+  // 1. Try known static books first (trusted price)
+  let product = PRODUCTS[productId];
+
+  // 2. If not a static book, use frontend name + amount (dynamic books like Father Brown)
+  // This is safe because we validate amount below
+  if (!product && frontendAmount > 0 && frontendName) {
+    product = { name: frontendName, amount: frontendAmount };
+  }
+
+  // 3. If still nothing, reject
+  if (!product || !product.amount || product.amount <= 0) {
     return res.status(400).json({ error: "Please select a valid product." });
+  }
+
+  // Safety: don't let anyone charge KSh 1 or KSh 1,000,000 by editing JS
+  if (product.amount < 10 || product.amount > 5000) {
+    return res.status(400).json({ error: "Invalid amount for this product." });
   }
 
   const phone = normalizePhone(rawPhone);
@@ -43,8 +64,6 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "Enter a valid Kenyan mobile number. Example: 0704577216" });
   }
 
-  // YOUR NUMBERS - Store 1275105, Till 1745713
-  // You can still override via Vercel Env Vars if you want
   const storeNumber = String(process.env.MPESA_SHORTCODE || "1275105").trim();
   const tillNumber = String(process.env.MPESA_TILL_NUMBER || "1745713").trim();
   const { MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_PASSKEY, MPESA_CALLBACK_URL } = process.env;
@@ -56,7 +75,6 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // 1. Token - PRODUCTION
     const auth = Buffer.from(`${MPESA_CONSUMER_KEY}:${MPESA_CONSUMER_SECRET}`).toString("base64");
     const tokenResponse = await fetch(
       "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
@@ -68,18 +86,17 @@ module.exports = async (req, res) => {
       return res.status(502).json({ error: "M-Pesa authentication failed. Check production keys." });
     }
 
-    // 2. STK Payload - Store in BusinessShortCode, Till in PartyB
     const timestamp = getTimestamp();
     const password = base64(`${storeNumber}${MPESA_PASSKEY}${timestamp}`);
 
     const payload = {
-      BusinessShortCode: storeNumber, // 1275105 - STORE
+      BusinessShortCode: storeNumber,
       Password: password,
       Timestamp: timestamp,
-      TransactionType: "CustomerBuyGoodsOnline", // Till
+      TransactionType: "CustomerBuyGoodsOnline",
       Amount: product.amount,
-      PartyA: phone, // 254704577216 - Customer
-      PartyB: tillNumber, // 1745713 - TILL
+      PartyA: phone,
+      PartyB: tillNumber,
       PhoneNumber: phone,
       CallBackURL: MPESA_CALLBACK_URL,
       AccountReference: "GITLAB",
@@ -91,10 +108,10 @@ module.exports = async (req, res) => {
       PartyB: tillNumber,
       PartyA: phone,
       Amount: product.amount,
-      Timestamp: timestamp,
+      Product: product.name,
+      ProductId: productId,
     });
 
-    // 3. Send STK - PRODUCTION
     const stkResponse = await fetch(
       "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
       {
