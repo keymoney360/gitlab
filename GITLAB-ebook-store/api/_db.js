@@ -1,4 +1,4 @@
-// api/_db.js - FINAL: With membership fields so callback can save
+// api/_db.js - FINAL: With membership fields + Purchase so callback can save
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -81,6 +81,20 @@ const BookSchema = new mongoose.Schema({
 });
 const Book = mongoose.models.Book || mongoose.model("Book", BookSchema);
 
+// --- PURCHASE: Tracks every STK push so callback + frontend polling know which book was paid ---
+const PurchaseSchema = new mongoose.Schema({
+  checkoutRequestID: String,
+  phone: String,
+  productId: String,
+  productName: String,
+  amount: Number,
+  receipt: String,
+  status: { type: String, default: "pending" }, // pending | paid | failed
+  failReason: String,
+  userEmail: String,
+}, { timestamps: true });
+const Purchase = mongoose.models.Purchase || mongoose.model("Purchase", PurchaseSchema);
+
 function auth(req) {
   try {
     const h = req.headers.authorization || "";
@@ -90,4 +104,4 @@ function auth(req) {
   } catch { return null; }
 }
 
-module.exports = { connect, User, Referral, Withdrawal, Book, bcrypt, jwt, auth };
+module.exports = { connect, User, Referral, Withdrawal, Book, Purchase, bcrypt, jwt, auth };
