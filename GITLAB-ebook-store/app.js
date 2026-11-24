@@ -174,6 +174,7 @@ async function doReset() {
 let PRODUCTS = {};
 let ALL_BOOKS = [];
 let currentProduct = null;
+let selectedProduct = null; // FIX: keep the full product object, don't re-lookup later
 
 async function loadProducts() {
   try {
@@ -184,7 +185,7 @@ async function loadProducts() {
     ALL_BOOKS = books;
     PRODUCTS = {};
     books.forEach(b => {
-      const key = b._id || b.id;
+      const key = String(b._id || b.id);
       if (!key) return;
       PRODUCTS[key] = { name: b.title, price: b.price, _id: key, title: b.title };
     });
@@ -206,22 +207,19 @@ function escapeHtml(s) {
 function renderBookCards(books) {
   const container = document.getElementById("dynamicBooks");
   if (!container) { attachBuyButtons(); return; }
-  // Hide the old static Forex cards - DB books replace them
   const staticGrid = document.querySelector(".product-grid");
   if (staticGrid) staticGrid.style.display = "none";
-  // Update the count from 02 to real count
   const countEl = document.querySelector(".catalog-count b");
   if (countEl) countEl.textContent = String(books.length).padStart(2, "0");
-
   container.innerHTML = `<div class="product-grid">` + books.map(b => {
-    const id = b._id || b.id;
+    const id = String(b._id || b.id);
     const coverClass = b.cover || "cover-one";
     const shortTitle = escapeHtml(b.title || "");
     const cat = escapeHtml(b.category || "E-BOOK");
     return `
     <article class="product-card" data-book-id="${escapeHtml(id)}">
       <div class="cover ${escapeHtml(coverClass)}"><div class="cover-top">GITLAB LIBRARY <span>${cat}</span></div><div class="cover-symbol">📚</div><div class="cover-title">${shortTitle}</div><div class="cover-bottom">DIGITAL KNOWLEDGE</div></div>
-      <div class="product-info"><div class="product-meta"><span class="pill">${cat}</span><span class="pages">PDF · DIGITAL</span></div><h3>${shortTitle}</h3><p>${escapeHtml(b.description || "")}</p><div class="product-buy"><strong>KSh ${b.price}</strong><button class="buy-btn" data-product="${escapeHtml(id)}">Buy now <span>→</span></button></div></div>
+      <div class="product-info"><div class="product-meta"><span class="pill">${cat}</span><span class="pages">PDF · DIGITAL</span></div><h3>${shortTitle}</h3><p>${escapeHtml(b.description || "")}</p><div class="product-buy"><strong>KSh ${b.price}</strong><button class="buy-btn" data-product="${escapeHtml(id)}" data-name="${escapeHtml(b.title)}" data-price="${b.price}">Buy now <span>→</span></button></div></div>
     </article>`;
   }).join("") + `</div>`;
   attachBuyButtons();
@@ -232,16 +230,17 @@ function attachBuyButtons() {
     if (btn.dataset.bound) return;
     btn.dataset.bound = "1";
     btn.addEventListener("click", () => {
-      currentProduct = btn.dataset.product;
-      const p = PRODUCTS[currentProduct];
-      if (!p) {
-        const s = document.getElementById("checkoutStatus");
-        if (s) { s.textContent = "Please select a valid product."; s.className = "checkout-status error"; }
-        return;
-      }
-      const modalProduct = document.getElementById("modalProduct");
-      if (modalProduct) modalProduct.textContent = `${p.name} — KSh ${p.price}`;
+      // FIX: read name/price straight from the button - never depends on PRODUCTS lookup
+      const id = String(btn.dataset.product || "");
+      const name = btn.dataset.name || (PRODUCTS[id] && PRODUCTS[id].name) || "Book";
+      const price = Number(btn.dataset.price || (PRODUCTS[id] && PRODUCTS[id].price) || 0);
+      currentProduct = id;
+      selectedProduct = { _id: id, name: name, title: name, price: price };
+      // Also save to modal so Pay can read it even if page re-renders
       const modal = document.getElementById("checkoutModal");
+      if (modal) { modal.dataset.product = id; modal.dataset.name = name; modal.dataset.price = String(price); }
+      const modalProduct = document.getElementById("modalProduct");
+      if (modalProduct) modalProduct.textContent = `${name} — KSh ${price}`;
       if (modal) { modal.classList.add("open"); modal.setAttribute("aria-hidden", "false"); }
     });
   });
@@ -262,12 +261,21 @@ document.getElementById("payButton")?.addEventListener("click", async () => {
   let phone = document.getElementById("phone").value.trim().replace(/[\s+]/g, "");
   if (!/^[0-9]{9}$/.test(phone) && !/^254[0-9]{9}$/.test(phone)) { status.textContent = "Enter 9 digits e.g. 712345678"; status.className = "checkout-status error"; return; }
   if (phone.length === 9) phone = "254" + phone;
-  const p = PRODUCTS[currentProduct];
-  if (!p) { status.textContent = "Please select a valid product."; status.className = "checkout-status error"; return; }
+  // FIX: use selectedProduct saved on Buy click, fallback to modal dataset
+  let p = selectedProduct;
+  if (!p || !p.price) {
+    const modal = document.getElementById("checkoutModal");
+    if (modal && modal.dataset.product) {
+      p = { _id: modal.dataset.product, name: modal.dataset.name, title: modal.dataset.name, price: Number(modal.dataset.price) };
+      selectedProduct = p;
+      currentProduct = p._id;
+    }
+  }
+  if (!p || !p.price) { status.textContent = "Please select a valid product."; status.className = "checkout-status error"; return; }
   status.textContent = "Sending M-Pesa prompt...";
   status.className = "checkout-status";
   try {
-    const res = await fetch("/api/stk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone, amount: p.price, product: currentProduct, productName: p.name }) });
+    const res = await fetch("/api/stk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone, amount: p.price, product: p._id, productName: p.name }) });
     const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "STK failed");
     status.textContent = "STK sent! Enter PIN on your phone to complete.";
