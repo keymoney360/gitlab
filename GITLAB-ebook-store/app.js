@@ -213,14 +213,18 @@ function escapeHtml(s) {
 function renderBookCards(books) {
   const grid = document.querySelector(".books-grid") || document.getElementById("booksGrid") || document.getElementById("books-grid");
   if (!grid) { attachBuyButtons(); return; }
-  // If your index.html already has static cards, this replaces them with live DB books
   grid.innerHTML = books.map(b => {
     const id = b._id || b.id;
-    const cover = b.coverImage || b.cover || b.image || "";
     const cat = b.category ? `<span class="book-cat">${escapeHtml(b.category)}</span>` : "";
+    // cover in DB is "cover-one" / "cover-two" = CSS class, NOT a photo URL
+    const coverVal = b.coverImage || b.image || "";
+    const isUrl = coverVal.startsWith("http") || coverVal.startsWith("/") || coverVal.startsWith("data:");
+    const coverHtml = isUrl
+      ? `<img src="${escapeHtml(coverVal)}" alt="${escapeHtml(b.title)}" class="book-cover" onerror="this.style.display='none'">`
+      : `<div class="book-cover ${escapeHtml(b.cover || "cover-one")}">📚</div>`;
     return `
     <div class="book-card" data-book-id="${escapeHtml(id)}">
-      ${cover ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(b.title)}" class="book-cover" onerror="this.style.display='none'">` : `<div class="book-cover-placeholder">📚</div>`}
+      ${coverHtml}
       <h3>${escapeHtml(b.title)}</h3>
       ${cat}
       <p class="book-desc">${escapeHtml(b.description || "")}</p>
