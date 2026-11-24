@@ -1,5 +1,6 @@
 // GITLAB - app.js - Join / Login / Pay 300 / Books - FIXED
-document.getElementById("year").textContent = new Date().getFullYear();
+const yearEl = document.getElementById("year");
+if (yearEl) yearEl.textContent = new Date().getFullYear();
 
 async function safeJson(res) {
   const text = await res.text();
@@ -8,7 +9,7 @@ async function safeJson(res) {
   catch { throw new Error("Server returned non-JSON (" + res.status + "): " + text.slice(0, 200)); }
 }
 
-// --- FIX 3: Referral auto-fill - robust, persists, reapplies ---
+// --- Referral auto-fill ---
 function applyReferralFromUrl() {
   const ref = new URLSearchParams(window.location.search).get("ref");
   if (ref) {
@@ -16,12 +17,10 @@ function applyReferralFromUrl() {
     localStorage.setItem("gitlab_invite_ref", clean);
     const el = document.getElementById("regRef");
     if (el) el.value = clean;
-    // Show invite banner if exists
     const banner = document.getElementById("inviteBanner");
     if (banner) { banner.style.display = "block"; banner.textContent = "You were invited! Referral code " + clean + " applied ✓"; }
     return clean;
   }
-  // If no ?ref= in URL but we saved one earlier (user switched Login/Join), restore it
   const saved = localStorage.getItem("gitlab_invite_ref");
   if (saved) {
     const el = document.getElementById("regRef");
@@ -30,14 +29,12 @@ function applyReferralFromUrl() {
   return saved;
 }
 applyReferralFromUrl();
-// Re-apply every time modal opens - this is the key fix
-const _origOpenAuth = typeof openAuth !== "undefined" ? openAuth : null;
 
 // --- Auth Modal ---
 function openAuth(mode) {
   document.getElementById("authModal").classList.add("open");
   switchAuth(mode || "register");
-  setTimeout(applyReferralFromUrl, 100); // re-paste after modal opens
+  setTimeout(applyReferralFromUrl, 100);
 }
 function closeAuth() { document.getElementById("authModal").classList.remove("open"); }
 function switchAuth(mode) {
@@ -87,7 +84,7 @@ async function doRegister() {
   } catch (e) { showAlert(e.message); }
 }
 
-// --- FIX 1 + 2: PAY 300 - poll for real confirmation, don't fake it ---
+// --- PAY 300 ---
 let payPollTimer = null;
 async function doPay300() {
   let phone = document.getElementById("payPhone").value.trim().replace(/[\s+]/g, "");
@@ -103,7 +100,6 @@ async function doPay300() {
     const res = await fetch("/api/pay-membership", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token }, body: JSON.stringify({ phone }) });
     const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "STK failed");
-    // Don't say "paid" yet - STK sent != paid. Now POLL for callback.
     showAlert("STK SENT to " + phone + ". Enter your M-Pesa PIN now. Waiting for confirmation... (do not close this)");
     startPayPolling();
   } catch (e) { showAlert("STK FAILED: " + e.message + " - No prompt was sent. Check Daraja keys / Shortcode / Callback in Vercel."); }
@@ -130,7 +126,7 @@ function startPayPolling() {
   }, 5000);
 }
 
-// --- FIX 1: LOGIN - block unpaid users ---
+// --- LOGIN ---
 async function doLogin() {
   const email = document.getElementById("logEmail").value.trim().toLowerCase();
   const password = document.getElementById("logPass").value;
@@ -142,8 +138,6 @@ async function doLogin() {
     if (!res.ok) throw new Error(data.error || "Login failed");
     localStorage.setItem("gitts_token", data.token);
     localStorage.setItem("gitts_user", JSON.stringify(data.user));
-
-    // BLOCK unpaid: don't go to dashboard
     if (!data.user.isPaid && !data.user.membershipPaid) {
       showAlert("Login OK, but payment NOT confirmed yet. Pay KSh 300 to activate.");
       document.getElementById("payPhone").value = data.user.phone || "";
@@ -154,7 +148,7 @@ async function doLogin() {
   } catch (e) { showAlert(e.message); }
 }
 
-// --- FORGOT / RESET (unchanged) ---
+// --- FORGOT / RESET ---
 async function doForgot() {
   const email = document.getElementById("forgotEmail").value.trim().toLowerCase();
   if (!email) return showAlert("Enter your email.");
@@ -181,9 +175,11 @@ async function doReset() {
   } catch (e) { showAlert(e.message); }
 }
 
-// --- BOOK CHECKOUT ---
-const PRODUCTS = { "E-BOOK": { name: "Pride and prejudice",price: 200 },           
-const PRODUCTS = { "forex-journal": { name: "Forex Trading Journal", price: 150 }, "forex-discipline": { name: "Forex Discipline Journal", price: 200 } };
+// --- BOOK CHECKOUT - FIXED: was duplicate const PRODUCTS + unclosed brace ---
+const PRODUCTS = {
+  "forex-journal": { name: "Forex Trading Journal", price: 150 },
+  "forex-discipline": { name: "Forex Discipline Journal", price: 200 }
+};
 let currentProduct = null;
 document.querySelectorAll(".buy-btn").forEach(btn => {
   btn.addEventListener("click", () => {
@@ -195,14 +191,23 @@ document.querySelectorAll(".buy-btn").forEach(btn => {
     document.getElementById("checkoutModal").setAttribute("aria-hidden", "false");
   });
 });
-document.getElementById("closeModal")?.addEventListener("click", () => { document.getElementById("checkoutModal").classList.remove("open"); });
-document.getElementById("checkoutModal")?.addEventListener("click", (e) => { if (e.target.id === "checkoutModal") e.target.classList.remove("open"); });
+document.getElementById("closeModal")?.addEventListener("click", () => {
+  document.getElementById("checkoutModal").classList.remove("open");
+  document.getElementById("checkoutModal").setAttribute("aria-hidden", "true");
+});
+document.getElementById("checkoutModal")?.addEventListener("click", (e) => {
+  if (e.target.id === "checkoutModal") {
+    e.target.classList.remove("open");
+    e.target.setAttribute("aria-hidden", "true");
+  }
+});
 document.getElementById("payButton")?.addEventListener("click", async () => {
   const status = document.getElementById("checkoutStatus");
   let phone = document.getElementById("phone").value.trim().replace(/[\s+]/g, "");
   if (!/^[0-9]{9}$/.test(phone) && !/^254[0-9]{9}$/.test(phone)) { status.textContent = "Enter 9 digits e.g. 712345678"; status.className = "checkout-status error"; return; }
   if (phone.length === 9) phone = "254" + phone;
   const p = PRODUCTS[currentProduct];
+  if (!p) { status.textContent = "Select a book first."; return; }
   status.textContent = "Sending M-Pesa prompt...";
   status.className = "checkout-status";
   try {
