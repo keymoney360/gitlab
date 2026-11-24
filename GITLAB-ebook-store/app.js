@@ -1,4 +1,4 @@
-// GITLAB - app.js - v7 - FIXED: sends productId + product + amount
+// GITLAB - app.js - v8 - FIXED: book modal now polls /api/stk for confirmation
 const yearEl = document.getElementById("year");
 if (yearEl) yearEl.textContent = new Date().getFullYear();
 
@@ -224,6 +224,42 @@ function attachBuyButtons() {
 document.getElementById("closeModal")?.addEventListener("click", () => { document.getElementById("checkoutModal").classList.remove("open"); document.getElementById("checkoutModal").setAttribute("aria-hidden", "true"); });
 document.getElementById("checkoutModal")?.addEventListener("click", (e) => { if (e.target.id === "checkoutModal") { e.target.classList.remove("open"); e.target.setAttribute("aria-hidden", "true"); } });
 
+// --- NEW: Poll for book payment confirmation ---
+let bookPollTimer = null;
+function pollBookPayment(checkoutRequestID, statusEl, product) {
+  if (!checkoutRequestID || !statusEl) return;
+  if (bookPollTimer) clearInterval(bookPollTimer);
+  let tries = 0;
+  statusEl.textContent = "STK sent! Enter PIN on your phone. Waiting for confirmation... Don't close this.";
+  statusEl.className = "checkout-status";
+  bookPollTimer = setInterval(async () => {
+    tries++;
+    try {
+      const r = await fetch(`/api/stk?checkoutRequestID=${checkoutRequestID}`);
+      const d = await safeJson(r);
+      if (d.paid) {
+        clearInterval(bookPollTimer);
+        statusEl.innerHTML = `✅ Payment CONFIRMED! Receipt: <b>${d.receipt}</b><br>Your book: <b>${d.productName || product?.name || ""}</b> is unlocked!`;
+        statusEl.className = "checkout-status success";
+        setTimeout(() => location.reload(), 2500);
+        return;
+      }
+      if (d.failed) {
+        clearInterval(bookPollTimer);
+        statusEl.textContent = `❌ Payment failed / cancelled: ${d.reason || "Try again"}`;
+        statusEl.className = "checkout-status error";
+        return;
+      }
+      if (tries % 6 === 0) statusEl.textContent = `Still waiting for M-Pesa confirmation... ${tries * 5}s. Don't close this.`;
+      if (tries > 24) {
+        clearInterval(bookPollTimer);
+        statusEl.textContent = "Still not confirmed after 2 mins. If you paid and got SMS, refresh the page - your book will be unlocked.";
+        statusEl.className = "checkout-status";
+      }
+    } catch (e) { /* keep polling */ }
+  }, 5000);
+}
+
 document.getElementById("payButton")?.addEventListener("click", async () => {
   const status = document.getElementById("checkoutStatus");
   let phone = document.getElementById("phone").value.trim().replace(/[\s+]/g, "");
@@ -248,12 +284,12 @@ document.getElementById("payButton")?.addEventListener("click", async () => {
   status.textContent = "Sending M-Pesa prompt...";
   status.className = "checkout-status";
   try {
-    // v7 FIX: send productId + product + price + name - backend accepts all
+    // v8 FIX: send productId + product + price + name - backend accepts all
     const res = await fetch("/api/stk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone, amount: p.price, price: p.price, product: p._id, productId: p._id, productName: p.name, name: p.name }) });
     const data = await safeJson(res);
     if (!res.ok) throw new Error(data.error || "STK failed");
-    status.textContent = "STK sent! Enter PIN on your phone to complete.";
-    status.className = "checkout-status success";
+    // FIXED: don't just say "STK sent" - now poll for real confirmation
+    pollBookPayment(data.checkoutRequestID, status, p);
   } catch (e) { status.textContent = e.message; status.className = "checkout-status error"; }
 });
 
@@ -263,4 +299,4 @@ const existingToken = localStorage.getItem("gitts_token");
 if (existingToken) {
   const joinBtns = document.querySelectorAll(".join-btn");
   joinBtns.forEach(b => { b.textContent = "My Dashboard →"; b.onclick = () => window.location.href = "/dashboard.html"; });
-}
+                              }
