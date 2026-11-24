@@ -22,6 +22,9 @@
     .auth-link{text-align:center;margin-top:12px;font-size:14px;color:#2563eb;cursor:pointer}
     .auth-alert{background:#FEF3C7;padding:10px;border-radius:10px;font-size:13px;margin:8px 0;display:none}
     .member-banner{background:#B8F53D;color:#000;padding:14px 20px;border-radius:14px;margin:20px auto;max-width:1100px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+    /* FIX: checkout modal was never showing */
+    .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;place-items:center;padding:16px}
+    .modal-backdrop.open{display:grid}
   </style>
 </head>
 <body>
@@ -81,7 +84,6 @@
 
   <footer><a class="brand" href="#"><span class="brand-mark">G</span><span>GITLAB<span class="brand-dot">.</span></span></a><span>© <span id="year"></span> GITLAB Digital Library</span><span>Knowledge, made accessible.</span></footer>
 
-  <!-- OLD CHECKOUT MODAL - KEEP -->
   <div class="modal-backdrop" id="checkoutModal" aria-hidden="true">
     <section class="checkout-modal" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle">
       <button class="close-modal" id="closeModal" aria-label="Close">×</button>
@@ -96,7 +98,6 @@
     </section>
   </div>
 
-  <!-- NEW AUTH MODAL -->
   <div class="auth-modal" id="authModal">
     <div class="auth-box">
       <div style="display:flex;justify-content:space-between"><h2 id="authTitle">Join GITLAB</h2><span onclick="closeAuth()" style="cursor:pointer;font-size:26px">×</span></div>
