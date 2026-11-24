@@ -1,4 +1,4 @@
-// api/stk.js - FIXED: accepts product / productId / productName + amount from frontend
+// api/stk.js - v7 FIXED: accepts productId/product + amount, saves pending Purchase
 const PRODUCTS = {
   "forex-journal": { name: "Forex Trading Journal", amount: 150 },
   "forex-discipline": { name: "Forex Discipline Journal", amount: 200 }
@@ -44,7 +44,6 @@ module.exports = async (req, res) => {
   let product = PRODUCTS[productId];
 
   // 2. If not a static book, use frontend name + amount (dynamic books like Father Brown)
-  // This is safe because we validate amount below
   if (!product && frontendAmount > 0 && frontendName) {
     product = { name: frontendName, amount: frontendAmount };
   }
@@ -64,6 +63,7 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "Enter a valid Kenyan mobile number. Example: 0704577216" });
   }
 
+  // YOUR NUMBERS - Store 1275105, Till 1745713
   const storeNumber = String(process.env.MPESA_SHORTCODE || "1275105").trim();
   const tillNumber = String(process.env.MPESA_TILL_NUMBER || "1745713").trim();
   const { MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_PASSKEY, MPESA_CALLBACK_URL } = process.env;
@@ -75,6 +75,7 @@ module.exports = async (req, res) => {
   }
 
   try {
+    // 1. Token - PRODUCTION
     const auth = Buffer.from(`${MPESA_CONSUMER_KEY}:${MPESA_CONSUMER_SECRET}`).toString("base64");
     const tokenResponse = await fetch(
       "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
@@ -86,17 +87,18 @@ module.exports = async (req, res) => {
       return res.status(502).json({ error: "M-Pesa authentication failed. Check production keys." });
     }
 
+    // 2. STK Payload - Store in BusinessShortCode, Till in PartyB
     const timestamp = getTimestamp();
     const password = base64(`${storeNumber}${MPESA_PASSKEY}${timestamp}`);
 
     const payload = {
-      BusinessShortCode: storeNumber,
+      BusinessShortCode: storeNumber, // 1275105 - STORE
       Password: password,
       Timestamp: timestamp,
-      TransactionType: "CustomerBuyGoodsOnline",
+      TransactionType: "CustomerBuyGoodsOnline", // Till
       Amount: product.amount,
-      PartyA: phone,
-      PartyB: tillNumber,
+      PartyA: phone, // 254704577216 - Customer
+      PartyB: tillNumber, // 1745713 - TILL
       PhoneNumber: phone,
       CallBackURL: MPESA_CALLBACK_URL,
       AccountReference: "GITLAB",
@@ -112,6 +114,7 @@ module.exports = async (req, res) => {
       ProductId: productId,
     });
 
+    // 3. Send STK - PRODUCTION
     const stkResponse = await fetch(
       "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
       {
@@ -133,6 +136,20 @@ module.exports = async (req, res) => {
         daraja: stkData,
       });
     }
+
+    // 4. NEW: Save pending purchase so callback knows WHICH book this was
+    try {
+      const { connect, Purchase } = require("./_db");
+      await connect();
+      await Purchase.create({
+        checkoutRequestID: stkData.CheckoutRequestID,
+        phone,
+        productId: productId || "book",
+        productName: product.name,
+        amount: product.amount,
+        status: "pending",
+      });
+    } catch (e) { console.log("Pending save failed, continuing:", e.message); }
 
     return res.status(200).json({
       success: true,
