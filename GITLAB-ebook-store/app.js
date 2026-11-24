@@ -182,6 +182,7 @@ async function doReset() {
 }
 
 // --- BOOK CHECKOUT ---
+const PRODUCTS = { "E-BOOK": { name: "Pride and prejudice",price: 200 },           
 const PRODUCTS = { "forex-journal": { name: "Forex Trading Journal", price: 150 }, "forex-discipline": { name: "Forex Discipline Journal", price: 200 } };
 let currentProduct = null;
 document.querySelectorAll(".buy-btn").forEach(btn => {
