@@ -65,12 +65,10 @@ async function doRegister() {
   const phone = document.getElementById("regPhone").value.trim();
   const password = document.getElementById("regPass").value;
   const referralCode = (document.getElementById("regRef").value.trim().toUpperCase() || localStorage.getItem("gitlab_invite_ref") || "").toUpperCase();
-
   if (!name || !email || !phone || !password) return showAlert("Fill all fields.");
   if (password.length < 6) return showAlert("Password must be at least 6 characters.");
   const cleanPhone = phone.replace(/[\s+]/g, "");
   if (!/^(0[0-9]{9}|254[0-9]{9})$/.test(cleanPhone)) return showAlert("Enter valid phone e.g. 0712345678");
-
   showAlert("Creating account...");
   try {
     const res = await fetch("/api/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email, phone, password, referralCode: referralCode || undefined }) });
@@ -91,10 +89,8 @@ async function doPay300() {
   if (!phone) return showAlert("Enter M-Pesa number.");
   if (phone.startsWith("0")) phone = "254" + phone.slice(1);
   if (phone.length !== 12 || !phone.startsWith("254")) return showAlert("Enter valid number e.g. 0712345678");
-
   const token = localStorage.getItem("gitts_token");
   if (!token || token === "null") { showAlert("Session expired - Login again, then Pay."); setTimeout(() => switchAuth("login"), 1000); return; }
-
   showAlert("Sending M-Pesa prompt to " + phone + "... Check your phone.");
   try {
     const res = await fetch("/api/pay-membership", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token }, body: JSON.stringify({ phone }) });
@@ -104,7 +100,6 @@ async function doPay300() {
     startPayPolling();
   } catch (e) { showAlert("STK FAILED: " + e.message + " - No prompt was sent. Check Daraja keys / Shortcode / Callback in Vercel."); }
 }
-
 function startPayPolling() {
   if (payPollTimer) clearInterval(payPollTimer);
   let tries = 0;
@@ -175,7 +170,7 @@ async function doReset() {
   } catch (e) { showAlert(e.message); }
 }
 
-// --- BOOK CHECKOUT - FIXED: Loads from MongoDB via /api/books ---
+// --- BOOKS - Loads from MongoDB via /api/books into #dynamicBooks ---
 let PRODUCTS = {};
 let ALL_BOOKS = [];
 let currentProduct = null;
@@ -184,7 +179,6 @@ async function loadProducts() {
   try {
     const res = await fetch("/api/books");
     const data = await safeJson(res);
-    // API may return array directly OR { books: [...] } OR { data: [...] }
     const books = Array.isArray(data) ? data : (data.books || data.data || []);
     if (!books.length) throw new Error("No books from API");
     ALL_BOOKS = books;
@@ -197,7 +191,6 @@ async function loadProducts() {
     renderBookCards(books);
   } catch (e) {
     console.log("Books API failed, using fallback:", e.message);
-    // Fallback so old books still work if API is down
     PRODUCTS = {
       "forex-journal": { name: "Forex Trading Journal", price: 150 },
       "forex-discipline": { name: "Forex Discipline Journal", price: 200 }
@@ -211,33 +204,31 @@ function escapeHtml(s) {
 }
 
 function renderBookCards(books) {
-  const grid = document.querySelector(".books-grid") || document.getElementById("booksGrid") || document.getElementById("books-grid");
-  if (!grid) { attachBuyButtons(); return; }
-  grid.innerHTML = books.map(b => {
+  const container = document.getElementById("dynamicBooks");
+  if (!container) { attachBuyButtons(); return; }
+  // Hide the old static Forex cards - DB books replace them
+  const staticGrid = document.querySelector(".product-grid");
+  if (staticGrid) staticGrid.style.display = "none";
+  // Update the count from 02 to real count
+  const countEl = document.querySelector(".catalog-count b");
+  if (countEl) countEl.textContent = String(books.length).padStart(2, "0");
+
+  container.innerHTML = `<div class="product-grid">` + books.map(b => {
     const id = b._id || b.id;
-    const cat = b.category ? `<span class="book-cat">${escapeHtml(b.category)}</span>` : "";
-    // cover in DB is "cover-one" / "cover-two" = CSS class, NOT a photo URL
-    const coverVal = b.coverImage || b.image || "";
-    const isUrl = coverVal.startsWith("http") || coverVal.startsWith("/") || coverVal.startsWith("data:");
-    const coverHtml = isUrl
-      ? `<img src="${escapeHtml(coverVal)}" alt="${escapeHtml(b.title)}" class="book-cover" onerror="this.style.display='none'">`
-      : `<div class="book-cover ${escapeHtml(b.cover || "cover-one")}">📚</div>`;
+    const coverClass = b.cover || "cover-one";
+    const shortTitle = escapeHtml(b.title || "");
+    const cat = escapeHtml(b.category || "E-BOOK");
     return `
-    <div class="book-card" data-book-id="${escapeHtml(id)}">
-      ${coverHtml}
-      <h3>${escapeHtml(b.title)}</h3>
-      ${cat}
-      <p class="book-desc">${escapeHtml(b.description || "")}</p>
-      <p class="book-price"><b>KSh ${b.price}</b></p>
-      <button class="buy-btn" data-product="${escapeHtml(id)}">Buy Now</button>
-    </div>`;
-  }).join("");
+    <article class="product-card" data-book-id="${escapeHtml(id)}">
+      <div class="cover ${escapeHtml(coverClass)}"><div class="cover-top">GITLAB LIBRARY <span>${cat}</span></div><div class="cover-symbol">📚</div><div class="cover-title">${shortTitle}</div><div class="cover-bottom">DIGITAL KNOWLEDGE</div></div>
+      <div class="product-info"><div class="product-meta"><span class="pill">${cat}</span><span class="pages">PDF · DIGITAL</span></div><h3>${shortTitle}</h3><p>${escapeHtml(b.description || "")}</p><div class="product-buy"><strong>KSh ${b.price}</strong><button class="buy-btn" data-product="${escapeHtml(id)}">Buy now <span>→</span></button></div></div>
+    </article>`;
+  }).join("") + `</div>`;
   attachBuyButtons();
 }
 
 function attachBuyButtons() {
   document.querySelectorAll(".buy-btn").forEach(btn => {
-    // Prevent duplicate listeners
     if (btn.dataset.bound) return;
     btn.dataset.bound = "1";
     btn.addEventListener("click", () => {
