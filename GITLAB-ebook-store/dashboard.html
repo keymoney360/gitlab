@@ -88,7 +88,7 @@ async function loadDashboard() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Session expired");
     const u = data.user;
-    document.getElementById("userName").textContent = u.name.split(" ")[0];
+    document.getElementById("userName").textContent = (u.name || "Friend").split(" ")[0];
     document.getElementById("balance").textContent = "KSh " + (u.balance || 0);
     document.getElementById("totalEarned").textContent = "KSh " + (u.totalEarned || 0);
     document.getElementById("refCount").textContent = (data.referrals || []).length;
@@ -99,8 +99,29 @@ async function loadDashboard() {
     document.getElementById("refLink").textContent = link;
     // Referrals table
     document.getElementById("refTable").innerHTML = (data.referrals || []).length ? (data.referrals || []).map(r => `<tr><td><b>${r.name}</b><br><span style="color:#9aa3af">${r.email}</span></td><td>Level ${r.level}</td><td><span class="pill2 ${r.status === 'PAID' ? '' : 'pending'}">${r.status}</span></td><td>KSh ${r.commission}</td><td>${new Date(r.createdAt).toLocaleDateString()}</td></tr>`).join("") : `<tr><td colspan="5" style="text-align:center">No referrals yet. Share your link above!</td></tr>`;
-    // Books
-    document.getElementById("booksTable").innerHTML = (data.books || []).length ? (data.books || []).map(b => `<tr><td>${b.name}</td><td>KSh ${b.price}</td><td><span class="pill2">${b.status}</span></td><td><a href="${b.downloadUrl || '#'}" style="color:#5e8c32;font-weight:700">Download →</a></td></tr>`).join("") : `<tr><td colspan="4" style="text-align:center">No books yet. <a href="/#books" style="color:#5e8c32;font-weight:700">Browse library →</a></td></tr>`;
+
+    // === BOOKS - FIXED ===
+    // 1. Try books from /api/me, 2. If they are IDs / missing title, fetch real books from /api/books?email=
+    let books = data.books || data.purchasedBooks || u.purchasedBooks || [];
+    const looksBroken = books.length && (typeof books[0] === "string" || !books[0].title && !books[0].name);
+    if (looksBroken || !books.length) {
+      try {
+        const br = await fetch("/api/books?email=" + encodeURIComponent(u.email || ""));
+        const bd = await br.json();
+        const real = Array.isArray(bd) ? bd : (bd.books || []);
+        if (real.length) books = real;
+      } catch(e) { console.log("books fallback failed", e); }
+    }
+    // If still strings (IDs), show placeholder - never undefined
+    document.getElementById("booksTable").innerHTML = books.length ? books.map(b => {
+      if (typeof b === "string") return `<tr><td>Book (ID: ${b.slice(-6)})</td><td>KSh -</td><td><span class="pill2">paid</span></td><td>-</td></tr>`;
+      const title = b.title || b.name || b.bookTitle || b.productName || "Untitled Book";
+      const price = b.price ?? b.amount ?? 0;
+      const status = b.status || "paid";
+      const dl = b.downloadUrl || b.downloadLink || b.fileUrl || b.pdfUrl || "#";
+      return `<tr><td><b>${title}</b></td><td>KSh ${price}</td><td><span class="pill2">${status}</span></td><td><a href="${dl}" target="_blank" rel="noreferrer" style="color:#5e8c32;font-weight:700">Download →</a></td></tr>`;
+    }).join("") : `<tr><td colspan="4" style="text-align:center">No books yet. <a href="/#books" style="color:#5e8c32;font-weight:700">Browse library →</a></td></tr>`;
+
     // Withdrawals
     document.getElementById("withdrawTable").innerHTML = (data.withdrawals || []).length ? (data.withdrawals || []).map(w => `<tr><td>KSh ${w.amount}</td><td>${w.phone}</td><td><span class="pill2 ${w.status === 'PAID' ? '' : 'pending'}">${w.status}</span></td><td>${new Date(w.createdAt).toLocaleDateString()}</td></tr>`).join("") : `<tr><td colspan="4" style="text-align:center">No withdrawals yet.</td></tr>`;
   } catch (e) {
