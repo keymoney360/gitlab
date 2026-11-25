@@ -1,4 +1,4 @@
-// api/mpesa-callback.js - v4: Books -> purchasedBooks + Membership
+// api/mpesa-callback.js - v5: Books -> purchasedBooks + Membership - FIXED
 const { connect, User, Purchase } = require("./_db");
 
 function normalizePhone(p) {
@@ -78,32 +78,44 @@ module.exports = async (req, res) => {
         await user.save();
       }
 
-      // --- 4. MEMBERSHIP (your original logic) ---
-      if (isMembership || !purchase) {
-        if (!(user.isPaid && user.membershipPaid)) {
-          user.isPaid = true;
+      // --- 4. FIXED: MARK USER AS PAID FOR ANY PAYMENT (book OR membership) ---
+      // This is what Admin checks to show PAID
+      if (!user.isPaid) {
+        user.isPaid = true;
+        user.lastMpesaReceipt = receipt;
+        await user.save();
+      }
+
+      // Only membership gets 30-day expiry
+      if (isMembership) {
+        if (!user.membershipPaid) {
           user.membershipPaid = true;
           user.membershipStatus = "active";
-          user.lastMpesaReceipt = receipt;
           user.membershipExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
           await user.save();
-          // ... your referral code stays here (Level 1 = 50, Level 2 = 30) ...
-          if (user.referredBy) {
-            const l1 = await User.findOne({ email: user.referredBy });
-            if (l1) {
-              l1.balance = (l1.balance || 0) + 50;
-              l1.totalEarned = (l1.totalEarned || 0) + 50;
-              await l1.save();
-              const db = require("mongoose").connection.db;
-              await db.collection("referrals").insertOne({ referrerEmail: l1.email, referrerCode: l1.referralCode, referredEmail: user.email, referredName: user.name, level: 1, status: "APPROVED", commission: 50, createdAt: new Date() });
-              if (l1.referredBy) {
-                const l2 = await User.findOne({ email: l1.referredBy });
-                if (l2) {
-                  l2.balance = (l2.balance || 0) + 30;
-                  l2.totalEarned = (l2.totalEarned || 0) + 30;
-                  await l2.save();
-                  await db.collection("referrals").insertOne({ referrerEmail: l2.email, referrerCode: l2.referralCode, referredEmail: user.email, referredName: user.name, level: 2, status: "APPROVED", commission: 30, createdAt: new Date() });
-                }
+        }
+      }
+
+      // Referral for BOTH book + membership (only once per user)
+      if (!user.referralPaid) {
+        user.referralPaid = true;
+        await user.save();
+
+        if (user.referredBy) {
+          const l1 = await User.findOne({ email: user.referredBy });
+          if (l1) {
+            l1.balance = (l1.balance || 0) + 50;
+            l1.totalEarned = (l1.totalEarned || 0) + 50;
+            await l1.save();
+            const db = require("mongoose").connection.db;
+            await db.collection("referrals").insertOne({ referrerEmail: l1.email, referrerCode: l1.referralCode, referredEmail: user.email, referredName: user.name, level: 1, status: "APPROVED", commission: 50, createdAt: new Date() });
+            if (l1.referredBy) {
+              const l2 = await User.findOne({ email: l1.referredBy });
+              if (l2) {
+                l2.balance = (l2.balance || 0) + 30;
+                l2.totalEarned = (l2.totalEarned || 0) + 30;
+                await l2.save();
+                await db.collection("referrals").insertOne({ referrerEmail: l2.email, referrerCode: l2.referralCode, referredEmail: user.email, referredName: user.name, level: 2, status: "APPROVED", commission: 30, createdAt: new Date() });
               }
             }
           }
